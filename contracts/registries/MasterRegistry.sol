@@ -41,6 +41,10 @@ contract MasterRegistry is Ownable {
         address[] storage registry = registryMap[registryName];
         uint256 version = registry.length;
         registry.push(registryAddress);
+        require(
+            bytes(reverseRegistry[registryAddress].name).length == 0,
+            "duplicate registry address"
+        );
         reverseRegistry[registryAddress] = ReverseRegistryData(
             registryName,
             version
@@ -61,7 +65,7 @@ contract MasterRegistry is Ownable {
     {
         address[] storage registry = registryMap[name];
         uint256 length = registry.length;
-        require(length > 0, "No match found for name");
+        require(length > 0, "no match found for name");
         return registry[length - 1];
     }
 
@@ -83,7 +87,7 @@ contract MasterRegistry is Ownable {
         )
     {
         ReverseRegistryData memory data = reverseRegistry[registryAddress];
-        require(bytes(data.name).length > 0, "No match found for address");
+        require(bytes(data.name).length > 0, "no match found for address");
         name = data.name;
         version = data.version;
         isLatest = version == registryMap[name].length.sub(1);
