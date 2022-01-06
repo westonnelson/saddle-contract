@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "../interfaces/ISwap.sol";
 import "../interfaces/IMetaSwap.sol";
 import "../meta/MetaSwapDeposit.sol";
+import "hardhat/console.sol";
 
 /**
  * @title PoolRegistry
@@ -27,13 +28,6 @@ contract PoolRegistry is Ownable, AccessControl {
     PoolData[] public communityPools;
     mapping(address => uint256) public poolToCommunityIndexPlusOne;
 
-    enum PoolType {
-        BTC,
-        ETH,
-        USD,
-        OTHERS
-    }
-
     event AddPool(address indexed poolAddress, PoolData poolData);
     event UpdatePool(address indexed poolAddress, PoolData poolData);
     event RemovePool(address indexed poolAddress);
@@ -42,7 +36,7 @@ contract PoolRegistry is Ownable, AccessControl {
         address poolAddress;
         string poolName;
         address lpToken;
-        PoolType typeOfAsset;
+        uint8 typeOfAsset;
         address[] tokens;
         address[] underlyingTokens;
         address basePoolAddress;
@@ -73,19 +67,26 @@ contract PoolRegistry is Ownable, AccessControl {
         // Checks and Interactions
         // Check lp token address
         {
-            (, , , , , , address lpToken) = getSwapStorage(
+            (, , , , , , address lpToken) = _getSwapStorage(
                 poolData.poolAddress
             );
-            require(lpToken == poolData.lpToken);
-            require(Ownable(lpToken).owner() == poolData.poolAddress);
+            require(lpToken == poolData.lpToken, "lptoken mismatch");
+            require(
+                Ownable(lpToken).owner() == poolData.poolAddress,
+                "lptoken owner mismatch"
+            );
         }
 
         // Check token addresses
         for (uint8 i = 0; i < 32; i++) {
             try ISwap(poolData.poolAddress).getToken(i) returns (IERC20 token) {
-                require(address(token) == poolData.tokens[i]);
+                require(
+                    address(token) == poolData.tokens[i],
+                    "token address mismatch"
+                );
             } catch {
-                require(i == poolData.tokens.length);
+                require(i == poolData.tokens.length, "tokens length mismatch");
+                break;
             }
         }
 
@@ -102,6 +103,7 @@ contract PoolRegistry is Ownable, AccessControl {
                     require(address(token) == poolData.underlyingTokens[i]);
                 } catch {
                     require(i == poolData.underlyingTokens.length);
+                    break;
                 }
             }
             require(
@@ -114,6 +116,11 @@ contract PoolRegistry is Ownable, AccessControl {
                     MetaSwapDeposit(poolData.metaPoolDepositAddress).metaSwap()
                 ) == poolData.poolAddress
             );
+        } else {
+            require(poolData.metaPoolDepositAddress == address(0));
+            for (uint256 i = 0; i < poolData.tokens.length; i++) {
+                require(poolData.underlyingTokens[i] == poolData.tokens[i]);
+            }
         }
 
         emit AddPool(poolData.poolAddress, poolData);
@@ -282,9 +289,25 @@ contract PoolRegistry is Ownable, AccessControl {
     }
 
     function getSwapStorage(address poolAddress)
-        public
+        external
         view
         hasMatchingPool(poolAddress)
+        returns (
+            uint256 initialA,
+            uint256 futureA,
+            uint256 initialATime,
+            uint256 futureATime,
+            uint256 swapFee,
+            uint256 adminFee,
+            address lpToken
+        )
+    {
+        return _getSwapStorage(poolAddress);
+    }
+
+    function _getSwapStorage(address poolAddress)
+        internal
+        view
         returns (
             uint256 initialA,
             uint256 futureA,
