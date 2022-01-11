@@ -4,7 +4,11 @@ import { solidity } from "ethereum-waffle"
 import chai from "chai"
 import { deployments } from "hardhat"
 import { ZERO_ADDRESS } from "./testUtils"
-import { PoolRegistry, PoolDataStruct } from "../build/typechain/PoolRegistry"
+import {
+  PoolRegistry,
+  PoolDataStruct,
+  PoolInputDataStruct,
+} from "../build/typechain/PoolRegistry"
 
 chai.use(solidity)
 const { expect } = chai
@@ -25,6 +29,8 @@ describe("Registry", async () => {
   let registryFactory: ContractFactory
   let usdv2Data: PoolDataStruct
   let susdMetaV2Data: PoolDataStruct
+  let usdv2InputData: PoolInputDataStruct
+  let susdMetaV2InputData: PoolInputDataStruct
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
@@ -38,46 +44,85 @@ describe("Registry", async () => {
         ownerAddress,
       )) as PoolRegistry
 
-      usdv2Data = {
+      usdv2InputData = {
         poolAddress: (await get("SaddleUSDPoolV2")).address,
         poolName: "USDv2",
+        typeOfAsset: PoolType.USD,
+        metaSwapDepositAddress: ZERO_ADDRESS,
+        isSaddleApproved: true,
+        isRemoved: false,
+      }
+
+      usdv2Data = {
+        poolAddress: (await get("SaddleUSDPoolV2")).address,
         lpToken: (await get("SaddleUSDPoolV2LPToken")).address,
+        poolName: "USDv2",
         typeOfAsset: PoolType.USD,
         tokens: [
           (await get("DAI")).address,
           (await get("USDC")).address,
           (await get("USDT")).address,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
         ],
         underlyingTokens: [
-          (await get("DAI")).address,
-          (await get("USDC")).address,
-          (await get("USDT")).address,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
         ],
         basePoolAddress: ZERO_ADDRESS,
-        metaPoolDepositAddress: ZERO_ADDRESS,
-        isSaddlePool: true,
+        metaSwapDepositAddress: ZERO_ADDRESS,
+        isSaddleApproved: true,
+        isRemoved: false,
+      }
+
+      susdMetaV2InputData = {
+        poolAddress: (await get("SaddleSUSDMetaPoolUpdated")).address,
+        poolName: "sUSD meta v2",
+        typeOfAsset: PoolType.USD,
+        metaSwapDepositAddress: (await get("SaddleSUSDMetaPoolUpdatedDeposit"))
+          .address,
+        isSaddleApproved: true,
         isRemoved: false,
       }
 
       susdMetaV2Data = {
         poolAddress: (await get("SaddleSUSDMetaPoolUpdated")).address,
-        poolName: "sUSD meta v2",
         lpToken: (await get("SaddleSUSDMetaPoolUpdatedLPToken")).address,
+        poolName: "sUSD meta v2",
         typeOfAsset: PoolType.USD,
         tokens: [
           (await get("SUSD")).address,
           (await get("SaddleUSDPoolV2LPToken")).address,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
         ],
         underlyingTokens: [
           (await get("SUSD")).address,
           (await get("DAI")).address,
           (await get("USDC")).address,
           (await get("USDT")).address,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
         ],
         basePoolAddress: (await get("SaddleUSDPoolV2")).address,
-        metaPoolDepositAddress: (await get("SaddleSUSDMetaPoolUpdatedDeposit"))
+        metaSwapDepositAddress: (await get("SaddleSUSDMetaPoolUpdatedDeposit"))
           .address,
-        isSaddlePool: true,
+        isSaddleApproved: true,
         isRemoved: false,
       }
     },
@@ -89,23 +134,21 @@ describe("Registry", async () => {
 
   describe("addPool", () => {
     it("Successfully adds USDv2 pool", async () => {
-      await poolRegistry.addPool(usdv2Data)
+      await poolRegistry.addPool(usdv2InputData)
     })
-    it("Reverts adding USDv2 pool with incorrect token list", async () => {
+    it("Reverts adding USDv2 pool with incorrect pool address", async () => {
       const incorrectData = {
-        ...usdv2Data,
-        tokens: [
-          (await get("SUSD")).address,
-          (await get("USDC")).address,
-          (await get("USDT")).address,
-        ],
+        ...usdv2InputData,
+        poolAddress: ZERO_ADDRESS,
       }
       await expect(poolRegistry.addPool(incorrectData)).to.be.revertedWith(
-        "token address mismatch",
+        "poolAddress == 0",
       )
     })
-    it("Successfully adds SUSD meta pool v2", async () => {
-      await poolRegistry.addPool(susdMetaV2Data)
+    it("Reverts when adding a meta pool without adding the base pool", async () => {
+      await expect(
+        poolRegistry.addPool(susdMetaV2InputData),
+      ).to.be.revertedWith("base pool not found")
     })
   })
 
@@ -113,8 +156,7 @@ describe("Registry", async () => {
     it("Successfully reads saddlePoolData", async () => {
       await poolRegistry.addPool(usdv2Data)
       await poolRegistry.addPool(susdMetaV2Data)
-      const poolDataArray: PoolDataStruct[] =
-        await poolRegistry.saddlePoolData()
+      const poolDataArray: PoolDataStruct[] = await poolRegistry.poolData()
       expect(poolDataArray).to.eql(
         [usdv2Data, susdMetaV2Data].map((x) => Object.values(x)),
       )

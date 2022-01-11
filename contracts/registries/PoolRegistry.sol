@@ -6,6 +6,7 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/ISwap.sol";
 import "../interfaces/IMetaSwap.sol";
 import "../meta/MetaSwapDeposit.sol";
@@ -15,7 +16,7 @@ import "hardhat/console.sol";
  * @title PoolRegistry
  * @notice This contract holds list of pools deployed.
  */
-contract PoolRegistry is Ownable, AccessControl {
+contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
     using SafeMath for uint256;
 
     bytes32 public constant SADDLE_MANAGER_ROLE =
@@ -23,25 +24,54 @@ contract PoolRegistry is Ownable, AccessControl {
     bytes32 public constant COMMUNITY_MANAGER_ROLE =
         keccak256("COMMUNITY_MANAGER_ROLE");
 
-    PoolData[] public saddlePools;
-    mapping(address => uint256) public poolToSaddleIndexPlusOne;
-    PoolData[] public communityPools;
-    mapping(address => uint256) public poolToCommunityIndexPlusOne;
+    PoolData[] public pools;
+    mapping(address => uint256) public poolsIndexOfPlusOne;
+    mapping(string => uint256) public poolsIndexOfNamePlusOne;
 
-    event AddPool(address indexed poolAddress, PoolData poolData);
-    event UpdatePool(address indexed poolAddress, PoolData poolData);
-    event RemovePool(address indexed poolAddress);
+    event AddPool(
+        address indexed poolAddress,
+        uint256 index,
+        PoolData poolData
+    );
+    event UpdatePool(
+        address indexed poolAddress,
+        uint256 index,
+        PoolData poolData
+    );
+    event RemovePool(address indexed poolAddress, uint256 index);
 
-    struct PoolData {
+    struct PoolOutputData {
         address poolAddress;
-        string poolName;
         address lpToken;
+        string poolName;
         uint8 typeOfAsset;
         address[] tokens;
         address[] underlyingTokens;
         address basePoolAddress;
-        address metaPoolDepositAddress;
+        address metaSwapDepositAddress;
         bool isSaddlePool;
+        bool isRemoved;
+    }
+
+    struct PoolInputData {
+        address poolAddress;
+        string poolName;
+        uint8 typeOfAsset;
+        address metaSwapDepositAddress;
+        bool isSaddleApproved;
+        bool isRemoved;
+    }
+
+    struct PoolData {
+        address poolAddress;
+        address lpToken;
+        string poolName;
+        uint8 typeOfAsset;
+        address[] tokens;
+        address[] underlyingTokens;
+        address basePoolAddress;
+        address metaSwapDepositAddress;
+        bool isSaddleApproved;
         bool isRemoved;
     }
 
@@ -50,95 +80,88 @@ contract PoolRegistry is Ownable, AccessControl {
         _setupRole(SADDLE_MANAGER_ROLE, msg.sender);
     }
 
-    function addPool(PoolData memory poolData) external {
+    function addPool(PoolInputData memory inputData) external nonReentrant {
         require(
             hasRole(SADDLE_MANAGER_ROLE, msg.sender),
             "Caller is not saddle manager"
         );
+        require(inputData.poolAddress != address(0), "poolAddress == 0");
         require(
-            poolToSaddleIndexPlusOne[poolData.poolAddress] == 0 &&
-                poolToCommunityIndexPlusOne[poolData.poolAddress] == 0,
+            poolsIndexOfPlusOne[inputData.poolAddress] == 0,
             "Pool is already added"
         );
 
-        // Effect
-        saddlePools.push(poolData);
+        PoolData memory data = PoolData(
+            inputData.poolAddress,
+            address(0),
+            inputData.poolName,
+            inputData.typeOfAsset,
+            new address[](8),
+            new address[](8),
+            address(0),
+            inputData.metaSwapDepositAddress,
+            inputData.isSaddleApproved,
+            inputData.isRemoved
+        );
 
-        // Checks and Interactions
-        // Check lp token address
-        {
-            (, , , , , , address lpToken) = _getSwapStorage(
-                poolData.poolAddress
-            );
-            require(lpToken == poolData.lpToken, "lptoken mismatch");
-            require(
-                Ownable(lpToken).owner() == poolData.poolAddress,
-                "lptoken owner mismatch"
-            );
-        }
+        // Get lp token address
+        (, , , , , , address lpToken) = _getSwapStorage(inputData.poolAddress);
+        require(
+            Ownable(lpToken).owner() == inputData.poolAddress,
+            "lptoken owner mismatch"
+        );
+        data.lpToken = lpToken;
 
         // Check token addresses
         for (uint8 i = 0; i < 32; i++) {
-            try ISwap(poolData.poolAddress).getToken(i) returns (IERC20 token) {
-                require(
-                    address(token) == poolData.tokens[i],
-                    "token address mismatch"
-                );
+            try ISwap(inputData.poolAddress).getToken(i) returns (
+                IERC20 token
+            ) {
+                require(address(token) != address(0));
+                data.tokens[i] = address(token);
             } catch {
-                require(i == poolData.tokens.length, "tokens length mismatch");
                 break;
             }
         }
 
-        // Check base pool
-        if (poolData.basePoolAddress != address(0)) {
-            (address baseSwap, , ) = IMetaSwap(poolData.poolAddress)
-                .metaSwapStorage();
-            require(baseSwap == poolData.basePoolAddress);
+        // Check meta swap deposit address
+        if (inputData.metaSwapDepositAddress != address(0)) {
+            // Get base pool address
+            data.basePoolAddress = address(
+                MetaSwapDeposit(inputData.metaSwapDepositAddress).baseSwap()
+            );
+            require(
+                poolsIndexOfPlusOne[data.basePoolAddress] > 0,
+                "base pool not found"
+            );
 
+            // Get underlying tokens
+            address[] storage underlyingTokens;
             for (uint8 i = 0; i < 32; i++) {
                 try
-                    MetaSwapDeposit(poolData.metaPoolDepositAddress).getToken(i)
+                    MetaSwapDeposit(inputData.metaSwapDepositAddress).getToken(
+                        i
+                    )
                 returns (IERC20 token) {
-                    require(address(token) == poolData.underlyingTokens[i]);
+                    require(address(token) != address(0));
+                    data.underlyingTokens[i] = address(token);
                 } catch {
-                    require(i == poolData.underlyingTokens.length);
                     break;
                 }
             }
             require(
                 address(
-                    MetaSwapDeposit(poolData.metaPoolDepositAddress).baseSwap()
-                ) == poolData.basePoolAddress
+                    MetaSwapDeposit(inputData.metaSwapDepositAddress).metaSwap()
+                ) == inputData.poolAddress,
+                "meta swap deposit mismatch"
             );
-            require(
-                address(
-                    MetaSwapDeposit(poolData.metaPoolDepositAddress).metaSwap()
-                ) == poolData.poolAddress
-            );
-        } else {
-            require(poolData.metaPoolDepositAddress == address(0));
-            for (uint256 i = 0; i < poolData.tokens.length; i++) {
-                require(poolData.underlyingTokens[i] == poolData.tokens[i]);
-            }
         }
 
-        emit AddPool(poolData.poolAddress, poolData);
-    }
+        pools.push(data);
+        poolsIndexOfPlusOne[data.poolAddress] = pools.length;
+        poolsIndexOfNamePlusOne[data.poolName] = pools.length;
 
-    function addCommunityPool(PoolData memory poolData) external {
-        require(
-            hasRole(COMMUNITY_MANAGER_ROLE, msg.sender),
-            "Caller is not community manager"
-        );
-        require(
-            poolToSaddleIndexPlusOne[poolData.poolAddress] == 0 &&
-                poolToCommunityIndexPlusOne[poolData.poolAddress] == 0,
-            "Pool is already added"
-        );
-        communityPools.push(poolData);
-
-        emit AddPool(poolData.poolAddress, poolData);
+        emit AddPool(inputData.poolAddress, pools.length - 1, data);
     }
 
     function approvePool(address poolAddress) external {
@@ -146,19 +169,15 @@ contract PoolRegistry is Ownable, AccessControl {
             hasRole(SADDLE_MANAGER_ROLE, msg.sender),
             "Caller is not saddle manager"
         );
-        uint256 saddleIndex = poolToSaddleIndexPlusOne[poolAddress];
-        uint256 communityIndex = poolToCommunityIndexPlusOne[poolAddress];
-        require(saddleIndex == 0, "Pool is already approved");
-        require(communityIndex > 0, "No matching pool found");
+        uint256 saddleIndex = poolsIndexOfPlusOne[poolAddress];
+        require(saddleIndex > 0, "No matching pool");
 
-        communityIndex -= 1;
-        PoolData storage poolData = communityPools[communityIndex];
+        PoolData storage poolData = pools[saddleIndex];
 
         require(poolData.poolAddress == poolAddress, "Something went wrong");
 
         // Effect
-        poolData.isSaddlePool = true;
-        saddlePools.push(poolData);
+        poolData.isSaddleApproved = true;
 
         // Interaction
         require(
@@ -166,7 +185,7 @@ contract PoolRegistry is Ownable, AccessControl {
             "Pool is not owned by saddle"
         );
 
-        emit AddPool(poolAddress, poolData);
+        emit UpdatePool(poolAddress, saddleIndex, poolData);
     }
 
     function updatePool(PoolData memory poolData) external {
@@ -174,23 +193,13 @@ contract PoolRegistry is Ownable, AccessControl {
             hasRole(SADDLE_MANAGER_ROLE, msg.sender),
             "Caller is not saddle manager"
         );
-        uint256 saddleIndex = poolToSaddleIndexPlusOne[poolData.poolAddress];
-        uint256 communityIndex = poolToCommunityIndexPlusOne[
-            poolData.poolAddress
-        ];
-        require(
-            saddleIndex > 0 || communityIndex > 0,
-            "No matching pool found"
-        );
+        uint256 saddleIndex = poolsIndexOfPlusOne[poolData.poolAddress];
+        require(saddleIndex > 0, "No matching pool");
+        saddleIndex -= 1;
 
-        if (saddleIndex > 0) {
-            saddlePools[saddleIndex - 1] = poolData;
-        }
-        if (communityIndex > 0) {
-            communityPools[communityIndex - 1] = poolData;
-        }
+        pools[saddleIndex] = poolData;
 
-        emit UpdatePool(poolData.poolAddress, poolData);
+        emit UpdatePool(poolData.poolAddress, saddleIndex, poolData);
     }
 
     function removePool(address poolAddress) external {
@@ -198,23 +207,13 @@ contract PoolRegistry is Ownable, AccessControl {
             hasRole(SADDLE_MANAGER_ROLE, msg.sender),
             "Caller is not saddle manager"
         );
-        uint256 saddleIndex = poolToSaddleIndexPlusOne[poolAddress];
-        uint256 communityIndex = poolToCommunityIndexPlusOne[poolAddress];
-        require(
-            saddleIndex > 0 || communityIndex > 0,
-            "No matching pool found"
-        );
+        uint256 saddleIndex = poolsIndexOfPlusOne[poolAddress];
+        require(saddleIndex > 0, "No matching pool");
+        saddleIndex -= 1;
 
-        if (saddleIndex > 0) {
-            saddlePools[saddleIndex - 1].isRemoved = true;
-            poolToSaddleIndexPlusOne[poolAddress] = 0;
-        }
-        if (communityIndex > 0) {
-            communityPools[communityIndex - 1].isRemoved = true;
-            poolToCommunityIndexPlusOne[poolAddress] = 0;
-        }
+        pools[saddleIndex].isRemoved = true;
 
-        emit RemovePool(poolAddress);
+        emit RemovePool(poolAddress, saddleIndex);
     }
 
     function getPoolData(address poolAddress)
@@ -222,24 +221,15 @@ contract PoolRegistry is Ownable, AccessControl {
         view
         returns (PoolData memory)
     {
-        uint256 saddleIndex = poolToSaddleIndexPlusOne[poolAddress];
-        uint256 communityIndex = poolToCommunityIndexPlusOne[poolAddress];
-
+        uint256 saddleIndex = poolsIndexOfPlusOne[poolAddress];
         if (saddleIndex > 0) {
-            return saddlePools[saddleIndex - 1];
-        } else if (communityIndex > 0) {
-            return communityPools[communityIndex - 1];
-        } else {
-            revert("No matching pool found");
+            return pools[saddleIndex - 1];
         }
+        revert("No matching pool found");
     }
 
     modifier hasMatchingPool(address poolAddress) {
-        require(
-            poolToSaddleIndexPlusOne[poolAddress] > 0 ||
-                poolToCommunityIndexPlusOne[poolAddress] > 0,
-            "No matching pool found"
-        );
+        require(poolsIndexOfPlusOne[poolAddress] > 0, "No matching pool found");
         _;
     }
 
@@ -326,16 +316,12 @@ contract PoolRegistry is Ownable, AccessControl {
         view
         returns (address[] memory)
     {
-        uint256 saddleIndex = poolToSaddleIndexPlusOne[poolAddress];
-        uint256 communityIndex = poolToCommunityIndexPlusOne[poolAddress];
+        uint256 saddleIndex = poolsIndexOfPlusOne[poolAddress];
 
         if (saddleIndex > 0) {
-            return saddlePools[saddleIndex - 1].tokens;
-        } else if (communityIndex > 0) {
-            return communityPools[communityIndex - 1].tokens;
-        } else {
-            revert("No matching pool found");
+            return pools[saddleIndex - 1].tokens;
         }
+        revert("No matching pool found");
     }
 
     function getUnderlyingTokens(address poolAddress)
@@ -343,31 +329,19 @@ contract PoolRegistry is Ownable, AccessControl {
         view
         returns (address[] memory)
     {
-        uint256 saddleIndex = poolToSaddleIndexPlusOne[poolAddress];
-        uint256 communityIndex = poolToCommunityIndexPlusOne[poolAddress];
+        uint256 saddleIndex = poolsIndexOfPlusOne[poolAddress];
 
         if (saddleIndex > 0) {
-            return saddlePools[saddleIndex - 1].underlyingTokens;
-        } else if (communityIndex > 0) {
-            return communityPools[communityIndex - 1].underlyingTokens;
-        } else {
-            revert("No matching pool found");
+            return pools[saddleIndex - 1].underlyingTokens;
         }
+        revert("No matching pool found");
     }
 
-    function saddlePoolData() external view returns (PoolData[] memory) {
-        return saddlePools;
+    function poolData() external view returns (PoolData[] memory) {
+        return pools;
     }
 
-    function saddlePoolDataLength() external view returns (uint256) {
-        return saddlePools.length;
-    }
-
-    function communityPoolData() external view returns (PoolData[] memory) {
-        return communityPools;
-    }
-
-    function communityPoolDataLength() external view returns (uint256) {
-        return communityPools.length;
+    function poolLength() external view returns (uint256) {
+        return pools.length;
     }
 }
