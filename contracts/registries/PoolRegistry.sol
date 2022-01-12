@@ -25,8 +25,9 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
         keccak256("COMMUNITY_MANAGER_ROLE");
 
     PoolData[] public pools;
-    mapping(address => uint256) public poolsIndexOfPlusOne;
-    mapping(string => uint256) public poolsIndexOfNamePlusOne;
+    mapping(address => uint256) private poolsIndexOfPlusOne;
+    mapping(string => uint256) private poolsIndexOfNamePlusOne;
+    mapping(uint256 => address[]) private eligiblePairsMap;
 
     event AddPool(
         address indexed poolAddress,
@@ -45,8 +46,8 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
         address lpToken;
         uint8 typeOfAsset;
         string poolName;
-        address[8] tokens;
-        address[8] underlyingTokens;
+        address[] tokens;
+        address[] underlyingTokens;
         address basePoolAddress;
         address metaSwapDepositAddress;
         bool isSaddlePool;
@@ -67,8 +68,8 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
         address lpToken;
         uint8 typeOfAsset;
         string poolName;
-        address[8] tokens;
-        address[8] underlyingTokens;
+        address[] tokens;
+        address[] underlyingTokens;
         address basePoolAddress;
         address metaSwapDepositAddress;
         bool isSaddleApproved;
@@ -91,8 +92,8 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
             "Pool is already added"
         );
 
-        address[8] memory tokens;
-        address[8] memory underlyingTokens;
+        address[] memory tokens = new address[](8);
+        address[] memory underlyingTokens = new address[](8);
 
         PoolData memory data = PoolData(
             inputData.poolAddress,
@@ -115,13 +116,20 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
         );
 
         // Check token addresses
-        for (uint8 i = 0; i < 32; i++) {
+        for (uint8 i = 0; i < 8; i++) {
             try ISwap(inputData.poolAddress).getToken(i) returns (
                 IERC20 token
             ) {
                 require(address(token) != address(0));
-                data.tokens[i] = address(token);
+                tokens[i] = address(token);
+                for (uint8 j = 0; j < i; j++) {
+                    eligiblePairsMap[uint160(tokens[i]) ^ uint160(tokens[j])]
+                        .push(inputData.poolAddress);
+                }
             } catch {
+                assembly {
+                    mstore(tokens, sub(mload(tokens), sub(8, i)))
+                }
                 break;
             }
         }
@@ -138,15 +146,28 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
             );
 
             // Get underlying tokens
-            for (uint8 i = 0; i < 32; i++) {
+            for (uint8 i = 0; i < 8; i++) {
                 try
                     MetaSwapDeposit(inputData.metaSwapDepositAddress).getToken(
                         i
                     )
                 returns (IERC20 token) {
                     require(address(token) != address(0));
-                    data.underlyingTokens[i] = address(token);
+                    underlyingTokens[i] = address(token);
+                    if (i > tokens.length.sub(2))
+                        for (uint256 j = 0; j < tokens.length - 1; j++) {
+                            eligiblePairsMap[
+                                uint160(underlyingTokens[i]) ^
+                                    uint160(underlyingTokens[j])
+                            ].push(inputData.metaSwapDepositAddress);
+                        }
                 } catch {
+                    assembly {
+                        mstore(
+                            underlyingTokens,
+                            sub(mload(underlyingTokens), sub(8, i))
+                        )
+                    }
                     break;
                 }
             }
@@ -156,6 +177,10 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
                 ) == inputData.poolAddress,
                 "meta swap deposit mismatch"
             );
+        } else {
+            assembly {
+                mstore(underlyingTokens, sub(mload(underlyingTokens), 8))
+            }
         }
 
         pools.push(data);
@@ -315,7 +340,7 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
     function getTokens(address poolAddress)
         external
         view
-        returns (address[8] memory)
+        returns (address[] memory)
     {
         uint256 saddleIndex = poolsIndexOfPlusOne[poolAddress];
 
@@ -328,7 +353,7 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
     function getUnderlyingTokens(address poolAddress)
         external
         view
-        returns (address[8] memory)
+        returns (address[] memory)
     {
         uint256 saddleIndex = poolsIndexOfPlusOne[poolAddress];
 
@@ -347,17 +372,15 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
     }
 
     function _containsBothElements(
-        address[8] storage arr,
+        address[] memory arr,
         address a,
         address b
-    ) internal view returns (bool) {
+    ) internal pure returns (bool) {
         bool containsA;
         bool containsB;
-        for (uint256 j = 0; j < 8; j++) {
-            address el = arr[j];
-            if (el == address(0)) break;
-            containsA = el == a || containsA;
-            containsB = el == b || containsB;
+        for (uint256 j = 0; j < arr.length; j++) {
+            containsA = arr[j] == a || containsA;
+            containsB = arr[j] == b || containsB;
         }
         return containsA && containsB;
     }
@@ -371,26 +394,6 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
             from != address(0) && from != to,
             "invalid from and to address"
         );
-        eligiblePools = new address[](pools.length);
-        uint256 eligiblePoolsLength = 0;
-        for (uint256 i = 0; i < pools.length; i++) {
-            // First check with metaSwapDeposit
-            address eligiblePool = pools[i].metaSwapDepositAddress;
-            if (eligiblePool != address(0)) {
-                // If a match is found, skip to the next
-                if (
-                    _containsBothElements(pools[i].underlyingTokens, from, to)
-                ) {
-                    eligiblePools[eligiblePoolsLength] = eligiblePool;
-                    eligiblePoolsLength++;
-                    continue;
-                }
-            }
-            eligiblePool = pools[i].poolAddress;
-            if (_containsBothElements(pools[i].tokens, from, to)) {
-                eligiblePools[eligiblePoolsLength] = eligiblePool;
-                eligiblePoolsLength++;
-            }
-        }
+        return eligiblePairsMap[uint160(from) ^ uint160(to)];
     }
 }

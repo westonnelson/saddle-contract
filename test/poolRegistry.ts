@@ -1,3 +1,6 @@
+/* eslint-disable prettier/prettier */
+/*eslint max-len: ["error", { "code": 150 }]*/
+
 import { ContractFactory, Signer } from "ethers"
 import { solidity } from "ethereum-waffle"
 
@@ -62,22 +65,8 @@ describe("Registry", async () => {
           (await get("DAI")).address,
           (await get("USDC")).address,
           (await get("USDT")).address,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
         ],
-        underlyingTokens: [
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-        ],
+        underlyingTokens: [],
         basePoolAddress: ZERO_ADDRESS,
         metaSwapDepositAddress: ZERO_ADDRESS,
         isSaddleApproved: true,
@@ -102,22 +91,12 @@ describe("Registry", async () => {
         tokens: [
           (await get("SUSD")).address,
           (await get("SaddleUSDPoolV2LPToken")).address,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
         ],
         underlyingTokens: [
           (await get("SUSD")).address,
           (await get("DAI")).address,
           (await get("USDC")).address,
           (await get("USDT")).address,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
         ],
         basePoolAddress: (await get("SaddleUSDPoolV2")).address,
         metaSwapDepositAddress: (await get("SaddleSUSDMetaPoolUpdatedDeposit"))
@@ -167,18 +146,39 @@ describe("Registry", async () => {
     it("Successfully gets all eligible pools", async () => {
       await poolRegistry.addPool(usdv2Data)
       await poolRegistry.addPool(susdMetaV2Data)
-      const eligiblePools = await poolRegistry.getEligiblePools(
-        (
-          await get("USDC")
-        ).address,
-        (
-          await get("DAI")
-        ).address,
-      )
-      expect(eligiblePools).to.eql([
-        (await get("SaddleUSDPoolV2")).address,
-        (await get("SaddleSUSDMetaPoolUpdatedDeposit")).address,
-      ])
+
+      // tokens
+      const dai = (await get("DAI")).address
+      const usdc = (await get("USDC")).address
+      const saddleUSDLPToken = (await get("SaddleUSDPoolV2LPToken")).address
+      const susd = (await get("SUSD")).address
+
+      // pools
+      const usdv2Pool = (await get("SaddleUSDPoolV2")).address
+      const susdPool = (await get("SaddleSUSDMetaPoolUpdated")).address
+      const susdPoolDeposit = (await get("SaddleSUSDMetaPoolUpdatedDeposit"))
+        .address
+
+      expect(
+        await poolRegistry.getEligiblePools(dai, usdc),
+        "dai, usdc",
+      ).to.eql([usdv2Pool])
+      expect(
+        await poolRegistry.getEligiblePools(dai, saddleUSDLPToken),
+        "dai, lptoken",
+      ).to.eql([])
+      expect(
+        await poolRegistry.getEligiblePools(susd, usdc),
+        "susd, usdc",
+      ).to.eql([susdPoolDeposit])
+      expect(
+        await poolRegistry.getEligiblePools(saddleUSDLPToken, susd),
+        "lptoken, susd",
+      ).to.eql([susdPool])
+      expect(
+        await poolRegistry.getEligiblePools(dai, susd),
+        "dai, susd",
+      ).to.eql([susdPoolDeposit])
     })
   })
 })
