@@ -43,10 +43,10 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
     struct PoolOutputData {
         address poolAddress;
         address lpToken;
-        string poolName;
         uint8 typeOfAsset;
-        address[] tokens;
-        address[] underlyingTokens;
+        string poolName;
+        address[8] tokens;
+        address[8] underlyingTokens;
         address basePoolAddress;
         address metaSwapDepositAddress;
         bool isSaddlePool;
@@ -55,8 +55,8 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
 
     struct PoolInputData {
         address poolAddress;
-        string poolName;
         uint8 typeOfAsset;
+        string poolName;
         address metaSwapDepositAddress;
         bool isSaddleApproved;
         bool isRemoved;
@@ -65,10 +65,10 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
     struct PoolData {
         address poolAddress;
         address lpToken;
-        string poolName;
         uint8 typeOfAsset;
-        address[] tokens;
-        address[] underlyingTokens;
+        string poolName;
+        address[8] tokens;
+        address[8] underlyingTokens;
         address basePoolAddress;
         address metaSwapDepositAddress;
         bool isSaddleApproved;
@@ -91,13 +91,16 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
             "Pool is already added"
         );
 
+        address[8] memory tokens;
+        address[8] memory underlyingTokens;
+
         PoolData memory data = PoolData(
             inputData.poolAddress,
             address(0),
-            inputData.poolName,
             inputData.typeOfAsset,
-            new address[](8),
-            new address[](8),
+            inputData.poolName,
+            tokens,
+            underlyingTokens,
             address(0),
             inputData.metaSwapDepositAddress,
             inputData.isSaddleApproved,
@@ -105,12 +108,11 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
         );
 
         // Get lp token address
-        (, , , , , , address lpToken) = _getSwapStorage(inputData.poolAddress);
+        (, , , , , , data.lpToken) = _getSwapStorage(inputData.poolAddress);
         require(
-            Ownable(lpToken).owner() == inputData.poolAddress,
+            Ownable(data.lpToken).owner() == inputData.poolAddress,
             "lptoken owner mismatch"
         );
-        data.lpToken = lpToken;
 
         // Check token addresses
         for (uint8 i = 0; i < 32; i++) {
@@ -136,7 +138,6 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
             );
 
             // Get underlying tokens
-            address[] storage underlyingTokens;
             for (uint8 i = 0; i < 32; i++) {
                 try
                     MetaSwapDeposit(inputData.metaSwapDepositAddress).getToken(
@@ -314,7 +315,7 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
     function getTokens(address poolAddress)
         external
         view
-        returns (address[] memory)
+        returns (address[8] memory)
     {
         uint256 saddleIndex = poolsIndexOfPlusOne[poolAddress];
 
@@ -327,7 +328,7 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
     function getUnderlyingTokens(address poolAddress)
         external
         view
-        returns (address[] memory)
+        returns (address[8] memory)
     {
         uint256 saddleIndex = poolsIndexOfPlusOne[poolAddress];
 
@@ -343,5 +344,53 @@ contract PoolRegistry is Ownable, AccessControl, ReentrancyGuard {
 
     function poolLength() external view returns (uint256) {
         return pools.length;
+    }
+
+    function _containsBothElements(
+        address[8] storage arr,
+        address a,
+        address b
+    ) internal view returns (bool) {
+        bool containsA;
+        bool containsB;
+        for (uint256 j = 0; j < 8; j++) {
+            address el = arr[j];
+            if (el == address(0)) break;
+            containsA = el == a || containsA;
+            containsB = el == b || containsB;
+        }
+        return containsA && containsB;
+    }
+
+    function getEligiblePools(address from, address to)
+        external
+        view
+        returns (address[] memory eligiblePools)
+    {
+        require(
+            from != address(0) && from != to,
+            "invalid from and to address"
+        );
+        eligiblePools = new address[](pools.length);
+        uint256 eligiblePoolsLength = 0;
+        for (uint256 i = 0; i < pools.length; i++) {
+            // First check with metaSwapDeposit
+            address eligiblePool = pools[i].metaSwapDepositAddress;
+            if (eligiblePool != address(0)) {
+                // If a match is found, skip to the next
+                if (
+                    _containsBothElements(pools[i].underlyingTokens, from, to)
+                ) {
+                    eligiblePools[eligiblePoolsLength] = eligiblePool;
+                    eligiblePoolsLength++;
+                    continue;
+                }
+            }
+            eligiblePool = pools[i].poolAddress;
+            if (_containsBothElements(pools[i].tokens, from, to)) {
+                eligiblePools[eligiblePoolsLength] = eligiblePool;
+                eligiblePoolsLength++;
+            }
+        }
     }
 }

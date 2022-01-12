@@ -46,8 +46,8 @@ describe("Registry", async () => {
 
       usdv2InputData = {
         poolAddress: (await get("SaddleUSDPoolV2")).address,
-        poolName: "USDv2",
         typeOfAsset: PoolType.USD,
+        poolName: "USDv2",
         metaSwapDepositAddress: ZERO_ADDRESS,
         isSaddleApproved: true,
         isRemoved: false,
@@ -56,8 +56,8 @@ describe("Registry", async () => {
       usdv2Data = {
         poolAddress: (await get("SaddleUSDPoolV2")).address,
         lpToken: (await get("SaddleUSDPoolV2LPToken")).address,
-        poolName: "USDv2",
         typeOfAsset: PoolType.USD,
+        poolName: "USDv2",
         tokens: [
           (await get("DAI")).address,
           (await get("USDC")).address,
@@ -86,8 +86,8 @@ describe("Registry", async () => {
 
       susdMetaV2InputData = {
         poolAddress: (await get("SaddleSUSDMetaPoolUpdated")).address,
-        poolName: "sUSD meta v2",
         typeOfAsset: PoolType.USD,
+        poolName: "sUSD meta v2",
         metaSwapDepositAddress: (await get("SaddleSUSDMetaPoolUpdatedDeposit"))
           .address,
         isSaddleApproved: true,
@@ -97,8 +97,8 @@ describe("Registry", async () => {
       susdMetaV2Data = {
         poolAddress: (await get("SaddleSUSDMetaPoolUpdated")).address,
         lpToken: (await get("SaddleSUSDMetaPoolUpdatedLPToken")).address,
-        poolName: "sUSD meta v2",
         typeOfAsset: PoolType.USD,
+        poolName: "sUSD meta v2",
         tokens: [
           (await get("SUSD")).address,
           (await get("SaddleUSDPoolV2LPToken")).address,
@@ -160,6 +160,25 @@ describe("Registry", async () => {
       expect(poolDataArray).to.eql(
         [usdv2Data, susdMetaV2Data].map((x) => Object.values(x)),
       )
+    })
+  })
+
+  describe("getEligiblePools", () => {
+    it("Successfully gets all eligible pools", async () => {
+      await poolRegistry.addPool(usdv2Data)
+      await poolRegistry.addPool(susdMetaV2Data)
+      const eligiblePools = await poolRegistry.getEligiblePools(
+        (
+          await get("USDC")
+        ).address,
+        (
+          await get("DAI")
+        ).address,
+      )
+      expect(eligiblePools).to.eql([
+        (await get("SaddleUSDPoolV2")).address,
+        (await get("SaddleSUSDMetaPoolUpdatedDeposit")).address,
+      ])
     })
   })
 })
