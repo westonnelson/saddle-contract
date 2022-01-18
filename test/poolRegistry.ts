@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier */
 /*eslint max-len: ["error", { "code": 150 }]*/
 
-import { ContractFactory, Signer } from "ethers"
+import { BigNumber, ContractFactory, Signer } from "ethers"
 import { solidity } from "ethereum-waffle"
 
 import chai from "chai"
@@ -52,6 +52,7 @@ describe("Registry", async () => {
         typeOfAsset: PoolType.USD,
         poolName: "USDv2",
         metaSwapDepositAddress: ZERO_ADDRESS,
+        pid: BigNumber.from(0),
         isSaddleApproved: true,
         isRemoved: false,
       }
@@ -69,6 +70,7 @@ describe("Registry", async () => {
         underlyingTokens: [],
         basePoolAddress: ZERO_ADDRESS,
         metaSwapDepositAddress: ZERO_ADDRESS,
+        pid: BigNumber.from(0),
         isSaddleApproved: true,
         isRemoved: false,
       }
@@ -79,6 +81,7 @@ describe("Registry", async () => {
         poolName: "sUSD meta v2",
         metaSwapDepositAddress: (await get("SaddleSUSDMetaPoolUpdatedDeposit"))
           .address,
+        pid: BigNumber.from(1),
         isSaddleApproved: true,
         isRemoved: false,
       }
@@ -101,6 +104,7 @@ describe("Registry", async () => {
         basePoolAddress: (await get("SaddleUSDPoolV2")).address,
         metaSwapDepositAddress: (await get("SaddleSUSDMetaPoolUpdatedDeposit"))
           .address,
+        pid: BigNumber.from(1),
         isSaddleApproved: true,
         isRemoved: false,
       }
@@ -131,14 +135,39 @@ describe("Registry", async () => {
     })
   })
 
-  describe("saddlePoolData", () => {
+  describe("getPoolData", () => {
     it("Successfully reads saddlePoolData", async () => {
       await poolRegistry.addPool(usdv2Data)
       await poolRegistry.addPool(susdMetaV2Data)
-      const poolDataArray: PoolDataStruct[] = await poolRegistry.poolData()
-      expect(poolDataArray).to.eql(
-        [usdv2Data, susdMetaV2Data].map((x) => Object.values(x)),
+      let fetchedByAddress = await poolRegistry["getPoolData(address)"](
+        (
+          await get("SaddleUSDPoolV2")
+        ).address,
       )
+      let fetchedByIndex = await poolRegistry["getPoolData(uint256)"](0)
+      expect(fetchedByAddress).to.eql(Object.values(usdv2Data))
+      expect(fetchedByIndex).to.eql(Object.values(usdv2Data))
+
+      fetchedByAddress = await poolRegistry["getPoolData(address)"](
+        (
+          await get("SaddleSUSDMetaPoolUpdated")
+        ).address,
+      )
+      fetchedByIndex = await poolRegistry["getPoolData(uint256)"](1)
+      expect(fetchedByAddress).to.eql(Object.values(susdMetaV2Data))
+      expect(fetchedByIndex).to.eql(Object.values(susdMetaV2Data))
+    })
+
+    it("Reverts when out of range", async () => {
+      await expect(poolRegistry["getPoolData(uint256)"](0)).to.be.revertedWith(
+        "out of range",
+      )
+    })
+
+    it("Reverts when address not found", async () => {
+      await expect(
+        poolRegistry["getPoolData(address)"](ZERO_ADDRESS),
+      ).to.be.revertedWith("no matching pool found")
     })
   })
 
