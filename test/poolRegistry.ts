@@ -50,7 +50,8 @@ describe("Registry", async () => {
       usdv2InputData = {
         poolAddress: (await get("SaddleUSDPoolV2")).address,
         typeOfAsset: PoolType.USD,
-        poolName: "USDv2",
+        poolName: ethers.utils.formatBytes32String("USDv2"),
+        targetAddress: (await get("SaddleUSDPoolV2")).address,
         metaSwapDepositAddress: ZERO_ADDRESS,
         pid: BigNumber.from(0),
         isSaddleApproved: true,
@@ -61,7 +62,8 @@ describe("Registry", async () => {
         poolAddress: (await get("SaddleUSDPoolV2")).address,
         lpToken: (await get("SaddleUSDPoolV2LPToken")).address,
         typeOfAsset: PoolType.USD,
-        poolName: "USDv2",
+        poolName: ethers.utils.formatBytes32String("USDv2"),
+        targetAddress: (await get("SaddleUSDPoolV2")).address,
         tokens: [
           (await get("DAI")).address,
           (await get("USDC")).address,
@@ -78,7 +80,8 @@ describe("Registry", async () => {
       susdMetaV2InputData = {
         poolAddress: (await get("SaddleSUSDMetaPoolUpdated")).address,
         typeOfAsset: PoolType.USD,
-        poolName: "sUSD meta v2",
+        poolName: ethers.utils.formatBytes32String("sUSD meta v2"),
+        targetAddress: (await get("SaddleSUSDMetaPoolUpdated")).address,
         metaSwapDepositAddress: (await get("SaddleSUSDMetaPoolUpdatedDeposit"))
           .address,
         pid: BigNumber.from(1),
@@ -90,7 +93,8 @@ describe("Registry", async () => {
         poolAddress: (await get("SaddleSUSDMetaPoolUpdated")).address,
         lpToken: (await get("SaddleSUSDMetaPoolUpdatedLPToken")).address,
         typeOfAsset: PoolType.USD,
-        poolName: "sUSD meta v2",
+        poolName: ethers.utils.formatBytes32String("sUSD meta v2"),
+        targetAddress: (await get("SaddleSUSDMetaPoolUpdated")).address,
         tokens: [
           (await get("SUSD")).address,
           (await get("SaddleUSDPoolV2LPToken")).address,

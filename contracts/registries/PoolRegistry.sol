@@ -34,7 +34,7 @@ contract PoolRegistry is
     // @inheritdoc IPoolRegistry
     mapping(address => uint256) public override poolsIndexOfPlusOne;
     // @inheritdoc IPoolRegistry
-    mapping(string => uint256) public override poolsIndexOfNamePlusOne;
+    mapping(bytes32 => uint256) public override poolsIndexOfNamePlusOne;
     mapping(uint256 => address[]) private eligiblePairsMap;
 
     /**
@@ -103,6 +103,7 @@ contract PoolRegistry is
             address(0),
             inputData.typeOfAsset,
             inputData.poolName,
+            inputData.targetAddress,
             tokens,
             underlyingTokens,
             address(0),

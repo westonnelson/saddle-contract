@@ -9,7 +9,8 @@ interface IPoolRegistry {
     struct PoolInputData {
         address poolAddress;
         uint8 typeOfAsset;
-        string poolName;
+        bytes32 poolName;
+        address targetAddress;
         address metaSwapDepositAddress;
         uint80 pid;
         bool isSaddleApproved;
@@ -20,7 +21,8 @@ interface IPoolRegistry {
         address poolAddress;
         address lpToken;
         uint8 typeOfAsset;
-        string poolName;
+        bytes32 poolName;
+        address targetAddress;
         address[] tokens;
         address[] underlyingTokens;
         address basePoolAddress;
@@ -36,7 +38,7 @@ interface IPoolRegistry {
         external
         returns (uint256);
 
-    function poolsIndexOfNamePlusOne(string memory poolName)
+    function poolsIndexOfNamePlusOne(bytes32 poolName)
         external
         returns (uint256);
 
