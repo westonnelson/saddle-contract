@@ -30,11 +30,12 @@ contract PoolRegistry is
     bytes32 public constant COMMUNITY_MANAGER_ROLE =
         keccak256("COMMUNITY_MANAGER_ROLE");
 
-    PoolData[] private pools;
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     mapping(address => uint256) public override poolsIndexOfPlusOne;
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     mapping(bytes32 => uint256) public override poolsIndexOfNamePlusOne;
+
+    PoolData[] private pools;
     mapping(uint256 => address[]) private eligiblePairsMap;
 
     /**
@@ -79,7 +80,7 @@ contract PoolRegistry is
         _setupRole(SADDLE_MANAGER_ROLE, msg.sender);
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function addPool(PoolInputData memory inputData)
         external
         override
@@ -195,7 +196,7 @@ contract PoolRegistry is
         emit AddPool(inputData.poolAddress, pools.length - 1, data);
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function approvePool(address poolAddress) external override {
         require(
             hasRole(SADDLE_MANAGER_ROLE, msg.sender),
@@ -220,7 +221,7 @@ contract PoolRegistry is
         emit UpdatePool(poolAddress, saddleIndex, poolData);
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function updatePool(PoolData memory poolData) external override {
         require(
             hasRole(SADDLE_MANAGER_ROLE, msg.sender),
@@ -235,7 +236,7 @@ contract PoolRegistry is
         emit UpdatePool(poolData.poolAddress, saddleIndex, poolData);
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function removePool(address poolAddress) external override {
         require(
             hasRole(SADDLE_MANAGER_ROLE, msg.sender),
@@ -250,7 +251,7 @@ contract PoolRegistry is
         emit RemovePool(poolAddress, saddleIndex);
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function getPoolData(uint256 index)
         external
         view
@@ -261,7 +262,7 @@ contract PoolRegistry is
         return pools[index];
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function getPoolData(address poolAddress)
         external
         view
@@ -277,7 +278,7 @@ contract PoolRegistry is
         _;
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function getVirtualPrice(address poolAddress)
         external
         view
@@ -288,7 +289,7 @@ contract PoolRegistry is
         return ISwap(poolAddress).getVirtualPrice();
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function getA(address poolAddress)
         external
         view
@@ -299,7 +300,7 @@ contract PoolRegistry is
         return ISwap(poolAddress).getA();
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function getPaused(address poolAddress)
         external
         view
@@ -310,7 +311,7 @@ contract PoolRegistry is
         return ISwap(poolAddress).paused();
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function getSwapFee(address poolAddress)
         external
         view
@@ -321,7 +322,7 @@ contract PoolRegistry is
         (, , , , swapFee, , ) = ISwap(poolAddress).swapStorage();
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function getAdminFee(address poolAddress)
         external
         view
@@ -332,7 +333,7 @@ contract PoolRegistry is
         (, , , , , adminFee, ) = ISwap(poolAddress).swapStorage();
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function getSwapStorage(address poolAddress)
         external
         view
@@ -367,7 +368,7 @@ contract PoolRegistry is
         return ISwap(poolAddress).swapStorage();
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function getTokens(address poolAddress)
         external
         view
@@ -382,7 +383,7 @@ contract PoolRegistry is
         revert("No matching pool found");
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function getUnderlyingTokens(address poolAddress)
         external
         view
@@ -397,12 +398,12 @@ contract PoolRegistry is
         revert("No matching pool found");
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function getPoolsLength() external view override returns (uint256) {
         return pools.length;
     }
 
-    // @inheritdoc IPoolRegistry
+    /// @inheritdoc IPoolRegistry
     function getEligiblePools(address from, address to)
         external
         view

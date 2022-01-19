@@ -5,45 +5,44 @@ pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "../interfaces/IMasterRegistry.sol";
 
 /**
  * @title MasterRegistry
  * @notice This contract holds list of other registries or contracts and its historical versions.
  */
-contract MasterRegistry is Ownable {
+contract MasterRegistry is Ownable, IMasterRegistry {
     using SafeMath for uint256;
 
-    struct ReverseRegistryData {
-        string name;
-        uint256 version;
-    }
+    mapping(bytes32 => address[]) private registryMap;
+    mapping(address => ReverseRegistryData) private reverseRegistry;
 
-    mapping(string => address[]) public registryMap;
-    mapping(address => ReverseRegistryData) public reverseRegistry;
-
+    /**
+     * @notice Add a new registry entry to the master list.
+     * @param name address of the added pool
+     * @param registryAddress address of the registry
+     * @param version version of the registry
+     */
     event AddRegistry(
-        string indexed name,
+        bytes32 indexed name,
         address registryAddress,
         uint256 version
     );
 
-    /**
-     * @notice Add a new registry entry to the master list.
-     * @param registryName name for the registry
-     * @param registryAddress address of the new registry
-     */
-    function addRegistry(string calldata registryName, address registryAddress)
+    /// @inheritdoc IMasterRegistry
+    function addRegistry(bytes32 registryName, address registryAddress)
         external
+        override
         onlyOwner
     {
-        require(bytes(registryName).length > 0, "name cannot be empty");
+        require(registryName != 0, "name cannot be empty");
         require(registryAddress != address(0), "address cannot be empty");
 
         address[] storage registry = registryMap[registryName];
         uint256 version = registry.length;
         registry.push(registryAddress);
         require(
-            bytes(reverseRegistry[registryAddress].name).length == 0,
+            reverseRegistry[registryAddress].name == 0,
             "duplicate registry address"
         );
         reverseRegistry[registryAddress] = ReverseRegistryData(
@@ -54,14 +53,11 @@ contract MasterRegistry is Ownable {
         emit AddRegistry(registryName, registryAddress, version);
     }
 
-    /**
-     * @notice Resolves a name to the latest registry address. Reverts if no match is found.
-     * @param name name for the registry
-     * @return address address of the latest registry with the matching name
-     */
-    function resolveNameToLatestAddress(string calldata name)
+    /// @inheritdoc IMasterRegistry
+    function resolveNameToLatestAddress(bytes32 name)
         external
         view
+        override
         returns (address)
     {
         address[] storage registry = registryMap[name];
@@ -70,25 +66,46 @@ contract MasterRegistry is Ownable {
         return registry[length - 1];
     }
 
-    /**
-     * @notice Resolves an address to registry entry data.
-     * @param registryAddress address of a registry you want to resolve
-     * @return name name of the resolved registry
-     * @return version version of the resolved registry
-     * @return isLatest boolean flag of whether the given address is the latest version of the given registries with
-     * matching name
-     */
+    /// @inheritdoc IMasterRegistry
+    function resolveNameAndVersionToAddress(bytes32 name, uint256 version)
+        external
+        view
+        override
+        returns (address)
+    {
+        address[] storage registry = registryMap[name];
+        require(
+            version < registry.length,
+            "no match found for name and version"
+        );
+        return registry[version];
+    }
+
+    /// @inheritdoc IMasterRegistry
+    function resolveNameToAllAddresses(bytes32 name)
+        external
+        view
+        override
+        returns (address[] memory)
+    {
+        address[] storage registry = registryMap[name];
+        require(registry.length > 0, "no match found for name");
+        return registry;
+    }
+
+    /// @inheritdoc IMasterRegistry
     function resolveAddressToRegistryData(address registryAddress)
         external
         view
+        override
         returns (
-            string memory name,
+            bytes32 name,
             uint256 version,
             bool isLatest
         )
     {
         ReverseRegistryData memory data = reverseRegistry[registryAddress];
-        require(bytes(data.name).length > 0, "no match found for address");
+        require(data.name != 0, "no match found for address");
         name = data.name;
         version = data.version;
         isLatest = version == registryMap[name].length.sub(1);
