@@ -40,7 +40,7 @@
     "ethers": "^5.5.2",
     "ethlint": "^1.2.5",
     "hardhat": "^2.8.0",
-    "hardhat-deploy": "^0.9.14",
+    "hardhat-deploy": "^0.9.24",
     "hardhat-gas-reporter": "^1.0.6",
     "hardhat-spdx-license-identifier": "^2.0.3",
     "husky": "^7.0.4",
@@ -72,7 +72,8 @@
     "deploy": "hardhat deploy",
     "start": "hardhat node --show-accounts",
     "fork": "dotenv -v FORK_MAINNET=true hardhat node --show-accounts --fork $ALCHEMY_API ",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "addresses": "node scripts/print-addresses.js"
   },
   "husky": {
     "hooks": {
