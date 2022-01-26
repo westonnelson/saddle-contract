@@ -3,8 +3,8 @@ import { solidity } from "ethereum-waffle"
 
 import chai from "chai"
 import { deployments } from "hardhat"
-import { ZERO_ADDRESS } from "./testUtils"
-import { MasterRegistry } from "../build/typechain/MasterRegistry"
+import { ZERO_ADDRESS } from "../testUtils"
+import { MasterRegistry } from "../../build/typechain/MasterRegistry"
 
 chai.use(solidity)
 const { expect } = chai

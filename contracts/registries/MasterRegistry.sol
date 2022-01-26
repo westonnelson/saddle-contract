@@ -3,7 +3,6 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IMasterRegistry.sol";
 
@@ -12,8 +11,6 @@ import "../interfaces/IMasterRegistry.sol";
  * @notice This contract holds list of other registries or contracts and its historical versions.
  */
 contract MasterRegistry is Ownable, IMasterRegistry {
-    using SafeMath for uint256;
-
     mapping(bytes32 => address[]) private registryMap;
     mapping(address => ReverseRegistryData) private reverseRegistry;
 
@@ -35,15 +32,15 @@ contract MasterRegistry is Ownable, IMasterRegistry {
         override
         onlyOwner
     {
-        require(registryName != 0, "name cannot be empty");
-        require(registryAddress != address(0), "address cannot be empty");
+        require(registryName != 0, "MR: name cannot be empty");
+        require(registryAddress != address(0), "MR: address cannot be empty");
 
         address[] storage registry = registryMap[registryName];
         uint256 version = registry.length;
         registry.push(registryAddress);
         require(
             reverseRegistry[registryAddress].name == 0,
-            "duplicate registry address"
+            "MR: duplicate registry address"
         );
         reverseRegistry[registryAddress] = ReverseRegistryData(
             registryName,
@@ -62,7 +59,7 @@ contract MasterRegistry is Ownable, IMasterRegistry {
     {
         address[] storage registry = registryMap[name];
         uint256 length = registry.length;
-        require(length > 0, "no match found for name");
+        require(length > 0, "MR: no match found for name");
         return registry[length - 1];
     }
 
@@ -76,7 +73,7 @@ contract MasterRegistry is Ownable, IMasterRegistry {
         address[] storage registry = registryMap[name];
         require(
             version < registry.length,
-            "no match found for name and version"
+            "MR: no match found for name and version"
         );
         return registry[version];
     }
@@ -89,7 +86,7 @@ contract MasterRegistry is Ownable, IMasterRegistry {
         returns (address[] memory)
     {
         address[] storage registry = registryMap[name];
-        require(registry.length > 0, "no match found for name");
+        require(registry.length > 0, "MR: no match found for name");
         return registry;
     }
 
@@ -105,9 +102,11 @@ contract MasterRegistry is Ownable, IMasterRegistry {
         )
     {
         ReverseRegistryData memory data = reverseRegistry[registryAddress];
-        require(data.name != 0, "no match found for address");
+        require(data.name != 0, "MR: no match found for address");
         name = data.name;
         version = data.version;
-        isLatest = version == registryMap[name].length.sub(1);
+        uint256 length = registryMap[name].length;
+        require(length > 0, "MR: no version found for address");
+        isLatest = version == length - 1;
     }
 }

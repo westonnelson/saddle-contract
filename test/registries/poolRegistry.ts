@@ -6,12 +6,12 @@ import { solidity } from "ethereum-waffle"
 
 import chai from "chai"
 import { deployments } from "hardhat"
-import { ZERO_ADDRESS } from "./testUtils"
+import { ZERO_ADDRESS } from "../testUtils"
 import {
   PoolRegistry,
   PoolDataStruct,
   PoolInputDataStruct,
-} from "../build/typechain/PoolRegistry"
+} from "../../build/typechain/PoolRegistry"
 
 chai.use(solidity)
 const { expect } = chai
@@ -44,7 +44,7 @@ describe("Registry", async () => {
       ownerAddress = await owner.getAddress()
       registryFactory = await ethers.getContractFactory("PoolRegistry")
       poolRegistry = (await registryFactory.deploy(
-        ownerAddress,
+        ownerAddress, ownerAddress
       )) as PoolRegistry
 
       usdv2InputData = {
@@ -164,14 +164,14 @@ describe("Registry", async () => {
 
     it("Reverts when out of range", async () => {
       await expect(poolRegistry["getPoolData(uint256)"](0)).to.be.revertedWith(
-        "out of range",
+        "PR: Index out of bounds",
       )
     })
 
     it("Reverts when address not found", async () => {
       await expect(
         poolRegistry["getPoolData(address)"](ZERO_ADDRESS),
-      ).to.be.revertedWith("no matching pool found")
+      ).to.be.revertedWith("PR: No matching pool found")
     })
   })
 

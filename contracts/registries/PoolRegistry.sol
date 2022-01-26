@@ -20,15 +20,19 @@ import "hardhat/console.sol";
 contract PoolRegistry is
     AccessControl,
     ReentrancyGuard,
-    Ownable,
     IPoolRegistry
 {
     using SafeMath for uint256;
 
+    /// @notice Role responsible for managing pools.
     bytes32 public constant SADDLE_MANAGER_ROLE =
         keccak256("SADDLE_MANAGER_ROLE");
+    /// @notice Role responsible for managing community pools
     bytes32 public constant COMMUNITY_MANAGER_ROLE =
         keccak256("COMMUNITY_MANAGER_ROLE");
+    /// @notice Role that represents approved owners of pools.
+    bytes32 public constant SADDLE_APPROVED_POOL_OWNER_ROLE =
+        keccak256("SADDLE_APPROVED_POOL_OWNER_ROLE");
 
     /// @inheritdoc IPoolRegistry
     mapping(address => uint256) public override poolsIndexOfPlusOne;
@@ -74,22 +78,20 @@ contract PoolRegistry is
      * @param admin address who should have the DEFAULT_ADMIN_ROLE
      * @dev caller of this function will be set as the owner on deployment
      */
-    constructor(address admin) public Ownable() {
+    constructor(address admin, address poolOwner) public {
         require(admin != address(0), "admin == 0");
         _setupRole(DEFAULT_ADMIN_ROLE, admin);
         _setupRole(SADDLE_MANAGER_ROLE, msg.sender);
+        _setupRole(SADDLE_APPROVED_POOL_OWNER_ROLE, poolOwner);
     }
 
     /// @inheritdoc IPoolRegistry
     function addPool(PoolInputData memory inputData)
         external
+        managerOnly
         override
         nonReentrant
     {
-        require(
-            hasRole(SADDLE_MANAGER_ROLE, msg.sender),
-            "Caller is not saddle manager"
-        );
         require(inputData.poolAddress != address(0), "poolAddress == 0");
         require(
             poolsIndexOfPlusOne[inputData.poolAddress] == 0,
@@ -128,6 +130,7 @@ contract PoolRegistry is
             ) {
                 require(address(token) != address(0));
                 tokens[i] = address(token);
+                // add combinations of tokens to eligible pairs map
                 for (uint8 j = 0; j < i; j++) {
                     eligiblePairsMap[uint160(tokens[i]) ^ uint160(tokens[j])]
                         .push(inputData.poolAddress);
@@ -160,6 +163,13 @@ contract PoolRegistry is
                 returns (IERC20 token) {
                     require(address(token) != address(0));
                     underlyingTokens[i] = address(token);
+                    // add combinations of tokens to eligible pairs map
+                    // i reprents the indexes of the underlying tokens of metaLPToken. 
+                    // j represents the indexes of MetaSwap level tokens that are not metaLPToken.
+                    // Example: tokens = [sUSD, baseLPToken]
+                    //         underlyingTokens = [sUSD, DAI, USDC, USDT]
+                    // i represents index of [DAI, USDC, USDT] in underlyingTokens
+                    // j represents index of [sUSD] in underlyingTokens
                     if (i > tokens.length.sub(2))
                         for (uint256 j = 0; j < tokens.length - 1; j++) {
                             eligiblePairsMap[
@@ -181,7 +191,7 @@ contract PoolRegistry is
                 address(
                     MetaSwapDeposit(inputData.metaSwapDepositAddress).metaSwap()
                 ) == inputData.poolAddress,
-                "meta swap deposit mismatch"
+                "PR: metaSwap address mismatch"
             );
         } else {
             assembly {
@@ -197,58 +207,46 @@ contract PoolRegistry is
     }
 
     /// @inheritdoc IPoolRegistry
-    function approvePool(address poolAddress) external override {
-        require(
-            hasRole(SADDLE_MANAGER_ROLE, msg.sender),
-            "Caller is not saddle manager"
-        );
-        uint256 saddleIndex = poolsIndexOfPlusOne[poolAddress];
-        require(saddleIndex > 0, "No matching pool");
+    function approvePool(address poolAddress) external managerOnly override {
+        uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
+        require(poolIndex > 0, "PR: Pool not found");
 
-        PoolData storage poolData = pools[saddleIndex];
+        PoolData storage poolData = pools[poolIndex];
 
-        require(poolData.poolAddress == poolAddress, "Something went wrong");
+        require(poolData.poolAddress == poolAddress, "PR: poolAddress mismatch");
 
         // Effect
         poolData.isSaddleApproved = true;
 
         // Interaction
         require(
-            ISwap(poolAddress).owner() == owner(),
+            hasRole(SADDLE_APPROVED_POOL_OWNER_ROLE, ISwap(poolAddress).owner()),
             "Pool is not owned by saddle"
         );
 
-        emit UpdatePool(poolAddress, saddleIndex, poolData);
+        emit UpdatePool(poolAddress, poolIndex, poolData);
     }
 
     /// @inheritdoc IPoolRegistry
-    function updatePool(PoolData memory poolData) external override {
-        require(
-            hasRole(SADDLE_MANAGER_ROLE, msg.sender),
-            "Caller is not saddle manager"
-        );
-        uint256 saddleIndex = poolsIndexOfPlusOne[poolData.poolAddress];
-        require(saddleIndex > 0, "No matching pool");
-        saddleIndex -= 1;
+    function updatePool(PoolData memory poolData) managerOnly external override {
+        uint256 poolIndex = poolsIndexOfPlusOne[poolData.poolAddress];
+        require(poolIndex > 0, "PR: Pool not found");
+        poolIndex -= 1;
 
-        pools[saddleIndex] = poolData;
+        pools[poolIndex] = poolData;
 
-        emit UpdatePool(poolData.poolAddress, saddleIndex, poolData);
+        emit UpdatePool(poolData.poolAddress, poolIndex, poolData);
     }
 
     /// @inheritdoc IPoolRegistry
-    function removePool(address poolAddress) external override {
-        require(
-            hasRole(SADDLE_MANAGER_ROLE, msg.sender),
-            "Caller is not saddle manager"
-        );
-        uint256 saddleIndex = poolsIndexOfPlusOne[poolAddress];
-        require(saddleIndex > 0, "No matching pool");
-        saddleIndex -= 1;
+    function removePool(address poolAddress) managerOnly external override {
+        uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
+        require(poolIndex > 0, "PR: Pool not found");
+        poolIndex -= 1;
 
-        pools[saddleIndex].isRemoved = true;
+        pools[poolIndex].isRemoved = true;
 
-        emit RemovePool(poolAddress, saddleIndex);
+        emit RemovePool(poolAddress, poolIndex);
     }
 
     /// @inheritdoc IPoolRegistry
@@ -258,7 +256,7 @@ contract PoolRegistry is
         override
         returns (PoolData memory)
     {
-        require(index < pools.length, "out of range");
+        require(index < pools.length, "PR: Index out of bounds");
         return pools[index];
     }
 
@@ -274,7 +272,12 @@ contract PoolRegistry is
     }
 
     modifier hasMatchingPool(address poolAddress) {
-        require(poolsIndexOfPlusOne[poolAddress] > 0, "no matching pool found");
+        require(poolsIndexOfPlusOne[poolAddress] > 0, "PR: No matching pool found");
+        _;
+    }
+
+    modifier managerOnly() {
+        require(hasRole(SADDLE_MANAGER_ROLE, msg.sender), "PR: Caller is not saddle manager");
         _;
     }
 
@@ -372,15 +375,16 @@ contract PoolRegistry is
     function getTokens(address poolAddress)
         external
         view
+        hasMatchingPool(poolAddress)
         override
         returns (address[] memory)
     {
-        uint256 saddleIndex = poolsIndexOfPlusOne[poolAddress];
+        uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
 
-        if (saddleIndex > 0) {
-            return pools[saddleIndex - 1].tokens;
+        if (poolIndex > 0) {
+            return pools[poolIndex - 1].tokens;
         }
-        revert("No matching pool found");
+        revert("PR: No matching pool found");
     }
 
     /// @inheritdoc IPoolRegistry
@@ -390,12 +394,12 @@ contract PoolRegistry is
         override
         returns (address[] memory)
     {
-        uint256 saddleIndex = poolsIndexOfPlusOne[poolAddress];
+        uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
 
-        if (saddleIndex > 0) {
-            return pools[saddleIndex - 1].underlyingTokens;
+        if (poolIndex > 0) {
+            return pools[poolIndex - 1].underlyingTokens;
         }
-        revert("No matching pool found");
+        revert("PR: No matching pool found");
     }
 
     /// @inheritdoc IPoolRegistry
@@ -412,7 +416,7 @@ contract PoolRegistry is
     {
         require(
             from != address(0) && from != to,
-            "invalid from and to address"
+            "PR: from and to cannot be the zero address"
         );
         return eligiblePairsMap[uint160(from) ^ uint160(to)];
     }
