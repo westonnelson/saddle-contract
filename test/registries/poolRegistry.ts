@@ -44,7 +44,8 @@ describe("Registry", async () => {
       ownerAddress = await owner.getAddress()
       registryFactory = await ethers.getContractFactory("PoolRegistry")
       poolRegistry = (await registryFactory.deploy(
-        ownerAddress, ownerAddress
+        ownerAddress,
+        ownerAddress,
       )) as PoolRegistry
 
       usdv2InputData = {

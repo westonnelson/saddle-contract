@@ -48,7 +48,7 @@ interface IPoolRegistry {
      * @notice Add a new pool to the registry
      * @param inputData PoolInputData struct for the new pool
      * @dev Before adding a meta pool, the user must first add the underlying base pool.
-     * Only Swap and MetaSwap contracts need to be addeded. 
+     * Only Swap and MetaSwap contracts need to be addeded.
      */
     function addPool(PoolInputData memory inputData) external;
 

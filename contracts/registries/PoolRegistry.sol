@@ -17,11 +17,7 @@ import "hardhat/console.sol";
  * @title PoolRegistry
  * @notice This contract holds list of pools deployed.
  */
-contract PoolRegistry is
-    AccessControl,
-    ReentrancyGuard,
-    IPoolRegistry
-{
+contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
     using SafeMath for uint256;
 
     /// @notice Role responsible for managing pools.
@@ -88,8 +84,8 @@ contract PoolRegistry is
     /// @inheritdoc IPoolRegistry
     function addPool(PoolInputData memory inputData)
         external
-        managerOnly
         override
+        managerOnly
         nonReentrant
     {
         require(inputData.poolAddress != address(0), "poolAddress == 0");
@@ -164,7 +160,7 @@ contract PoolRegistry is
                     require(address(token) != address(0));
                     underlyingTokens[i] = address(token);
                     // add combinations of tokens to eligible pairs map
-                    // i reprents the indexes of the underlying tokens of metaLPToken. 
+                    // i reprents the indexes of the underlying tokens of metaLPToken.
                     // j represents the indexes of MetaSwap level tokens that are not metaLPToken.
                     // Example: tokens = [sUSD, baseLPToken]
                     //         underlyingTokens = [sUSD, DAI, USDC, USDT]
@@ -207,20 +203,26 @@ contract PoolRegistry is
     }
 
     /// @inheritdoc IPoolRegistry
-    function approvePool(address poolAddress) external managerOnly override {
+    function approvePool(address poolAddress) external override managerOnly {
         uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
         require(poolIndex > 0, "PR: Pool not found");
 
         PoolData storage poolData = pools[poolIndex];
 
-        require(poolData.poolAddress == poolAddress, "PR: poolAddress mismatch");
+        require(
+            poolData.poolAddress == poolAddress,
+            "PR: poolAddress mismatch"
+        );
 
         // Effect
         poolData.isSaddleApproved = true;
 
         // Interaction
         require(
-            hasRole(SADDLE_APPROVED_POOL_OWNER_ROLE, ISwap(poolAddress).owner()),
+            hasRole(
+                SADDLE_APPROVED_POOL_OWNER_ROLE,
+                ISwap(poolAddress).owner()
+            ),
             "Pool is not owned by saddle"
         );
 
@@ -228,7 +230,11 @@ contract PoolRegistry is
     }
 
     /// @inheritdoc IPoolRegistry
-    function updatePool(PoolData memory poolData) managerOnly external override {
+    function updatePool(PoolData memory poolData)
+        external
+        override
+        managerOnly
+    {
         uint256 poolIndex = poolsIndexOfPlusOne[poolData.poolAddress];
         require(poolIndex > 0, "PR: Pool not found");
         poolIndex -= 1;
@@ -239,7 +245,7 @@ contract PoolRegistry is
     }
 
     /// @inheritdoc IPoolRegistry
-    function removePool(address poolAddress) managerOnly external override {
+    function removePool(address poolAddress) external override managerOnly {
         uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
         require(poolIndex > 0, "PR: Pool not found");
         poolIndex -= 1;
@@ -272,12 +278,18 @@ contract PoolRegistry is
     }
 
     modifier hasMatchingPool(address poolAddress) {
-        require(poolsIndexOfPlusOne[poolAddress] > 0, "PR: No matching pool found");
+        require(
+            poolsIndexOfPlusOne[poolAddress] > 0,
+            "PR: No matching pool found"
+        );
         _;
     }
 
     modifier managerOnly() {
-        require(hasRole(SADDLE_MANAGER_ROLE, msg.sender), "PR: Caller is not saddle manager");
+        require(
+            hasRole(SADDLE_MANAGER_ROLE, msg.sender),
+            "PR: Caller is not saddle manager"
+        );
         _;
     }
 
@@ -375,8 +387,8 @@ contract PoolRegistry is
     function getTokens(address poolAddress)
         external
         view
-        hasMatchingPool(poolAddress)
         override
+        hasMatchingPool(poolAddress)
         returns (address[] memory)
     {
         uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
