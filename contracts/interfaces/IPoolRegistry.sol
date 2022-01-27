@@ -83,10 +83,10 @@ interface IPoolRegistry {
         returns (PoolData memory);
 
     /**
-     * @notice Returns PoolData for given pool address
+     * @notice Returns PoolData at given index
      * @param index index of the pool to read
      */
-    function getPoolData(uint256 index) external view returns (PoolData memory);
+    function getPoolDataAtIndex(uint256 index) external view returns (PoolData memory);
 
     /**
      * @notice Returns virtual price of the given pool address
@@ -175,4 +175,12 @@ interface IPoolRegistry {
         external
         view
         returns (address[] memory eligiblePools);
+
+    /**
+     * @notice Returns an array of balances of the tokens
+     * @param poolAddress address of the pool to look up the balances for
+     * @return tokens array of token addresses
+     * @return balances array of token balances
+     */
+    function getBalances(address poolAddress) external view returns(address[] memory tokens, uint256[] memory balances);
 }

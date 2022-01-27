@@ -256,7 +256,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
     }
 
     /// @inheritdoc IPoolRegistry
-    function getPoolData(uint256 index)
+    function getPoolDataAtIndex(uint256 index)
         external
         view
         override
@@ -431,5 +431,14 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
             "PR: from and to cannot be the zero address"
         );
         return eligiblePairsMap[uint160(from) ^ uint160(to)];
+    }
+
+    /// @inheritdoc IPoolRegistry
+    function getBalances(address poolAddress) external view override hasMatchingPool(poolAddress) returns (address[] memory tokens, uint256[] memory balances) {
+        tokens = pools[poolsIndexOfPlusOne[poolAddress] - 1].tokens;
+        balances = new uint256[](tokens.length);
+        for(uint8 i = 0; i < tokens.length; i++) {
+            balances[i] = ISwap(poolAddress).getTokenBalance(i);
+        }
     }
 }

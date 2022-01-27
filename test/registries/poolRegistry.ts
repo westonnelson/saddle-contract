@@ -6,12 +6,13 @@ import { solidity } from "ethereum-waffle"
 
 import chai from "chai"
 import { deployments } from "hardhat"
-import { ZERO_ADDRESS } from "../testUtils"
+import { BIG_NUMBER_1E18, MAX_UINT256, ZERO_ADDRESS } from "../testUtils"
 import {
   PoolRegistry,
   PoolDataStruct,
   PoolInputDataStruct,
 } from "../../build/typechain/PoolRegistry"
+import { Swap } from "../../build/typechain"
 
 chai.use(solidity)
 const { expect } = chai
@@ -113,6 +114,13 @@ describe("Registry", async () => {
         isSaddleApproved: true,
         isRemoved: false,
       }
+
+      for(const token of usdv2Data.tokens) {
+          const tokenContract = await ethers.getContractAt("GenericERC20", token)
+          await tokenContract.approve(usdv2Data.poolAddress, MAX_UINT256)
+      }
+      const usdPoolContract = await ethers.getContract("SaddleUSDPoolV2") as Swap
+      await usdPoolContract.addLiquidity([String(1e18), String(1e6), String(1e6)], 0, MAX_UINT256)
     },
   )
 
@@ -140,39 +148,69 @@ describe("Registry", async () => {
     })
   })
 
-  describe("getPoolData", () => {
+  describe("getPoolData & getPoolDataAtIndex", () => {
     it("Successfully reads saddlePoolData", async () => {
       await poolRegistry.addPool(usdv2Data)
       await poolRegistry.addPool(susdMetaV2Data)
-      let fetchedByAddress = await poolRegistry["getPoolData(address)"](
+      let fetchedByAddress = await poolRegistry.getPoolData(
         (
           await get("SaddleUSDPoolV2")
         ).address,
       )
-      let fetchedByIndex = await poolRegistry["getPoolData(uint256)"](0)
+      let fetchedByIndex = await poolRegistry.getPoolDataAtIndex(0)
       expect(fetchedByAddress).to.eql(Object.values(usdv2Data))
       expect(fetchedByIndex).to.eql(Object.values(usdv2Data))
 
-      fetchedByAddress = await poolRegistry["getPoolData(address)"](
+      fetchedByAddress = await poolRegistry.callStatic.getPoolData(
         (
           await get("SaddleSUSDMetaPoolUpdated")
         ).address,
       )
-      fetchedByIndex = await poolRegistry["getPoolData(uint256)"](1)
+      fetchedByIndex = await poolRegistry.callStatic.getPoolDataAtIndex(1)
       expect(fetchedByAddress).to.eql(Object.values(susdMetaV2Data))
       expect(fetchedByIndex).to.eql(Object.values(susdMetaV2Data))
     })
 
     it("Reverts when out of range", async () => {
-      await expect(poolRegistry["getPoolData(uint256)"](0)).to.be.revertedWith(
+      await expect(poolRegistry.getPoolDataAtIndex(0)).to.be.revertedWith(
         "PR: Index out of bounds",
       )
     })
 
     it("Reverts when address not found", async () => {
       await expect(
-        poolRegistry["getPoolData(address)"](ZERO_ADDRESS),
+        poolRegistry.getPoolData(ZERO_ADDRESS),
       ).to.be.revertedWith("PR: No matching pool found")
+    })
+  })
+
+  describe("getVirtualPrice", () => {
+    it("Successfully fetches virtual price for given pool address", async() => {
+      await poolRegistry.addPool(usdv2Data)
+      expect(await poolRegistry.callStatic.getVirtualPrice(usdv2Data.poolAddress)).to.eq(BIG_NUMBER_1E18)
+    }) 
+  })
+
+  describe("getA", () => {
+    it("Successfully fetches A for given pool address", async() => {
+      await poolRegistry.addPool(usdv2Data)
+      expect(await poolRegistry.callStatic.getA(usdv2Data.poolAddress)).to.eq(200)
+    }) 
+  })
+
+  describe("getTokens", () => {
+    it("Successfully fetches tokens for given pool address", async() => {
+      await poolRegistry.addPool(usdv2Data)
+      expect(await poolRegistry.callStatic.getTokens(usdv2Data.poolAddress)).to.eql(usdv2Data.tokens)
+    })
+  })
+
+  describe("getBalances", () => {
+    it("Successfully fetches balances for given pool address", async() => {
+      await poolRegistry.addPool(usdv2Data)
+      expect(await poolRegistry.callStatic.getBalances(usdv2Data.poolAddress)).to.eql(
+        [usdv2Data.tokens, [BIG_NUMBER_1E18, BigNumber.from(1e6), BigNumber.from(1e6)]]
+        )
     })
   })
 
