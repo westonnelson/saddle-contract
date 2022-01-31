@@ -28,6 +28,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
     bytes32 public constant COMMUNITY_MANAGER_ROLE =
         keccak256("COMMUNITY_MANAGER_ROLE");
     /// @notice Role that represents approved owners of pools.
+    /// owner of each pool must have this role if the pool is to be approved.
     bytes32 public constant SADDLE_APPROVED_POOL_OWNER_ROLE =
         keccak256("SADDLE_APPROVED_POOL_OWNER_ROLE");
 
@@ -386,11 +387,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
         returns (address[] memory)
     {
         uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
-
-        if (poolIndex > 0) {
-            return pools[poolIndex - 1].tokens;
-        }
-        revert("PR: No matching pool found");
+        return pools[poolIndex - 1].tokens;
     }
 
     /// @inheritdoc IPoolRegistry
@@ -398,14 +395,11 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
         external
         view
         override
+        hasMatchingPool(poolAddress)
         returns (address[] memory)
     {
         uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
-
-        if (poolIndex > 0) {
-            return pools[poolIndex - 1].underlyingTokens;
-        }
-        revert("PR: No matching pool found");
+        return pools[poolIndex - 1].underlyingTokens;
     }
 
     /// @inheritdoc IPoolRegistry

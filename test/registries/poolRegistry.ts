@@ -194,6 +194,16 @@ describe("Registry", async () => {
     })
   })
 
+  describe("getPoolsLength", () => {
+    it("Successfully returns length of the private variable pools", async () => {
+      expect(await poolRegistry.getPoolsLength()).to.eq(0)
+      await poolRegistry.addPool(usdv2InputData)
+      expect(await poolRegistry.getPoolsLength()).to.eq(1)
+      await poolRegistry.addPool(susdMetaV2InputData)
+      expect(await poolRegistry.getPoolsLength()).to.eq(2)
+    })
+  })
+
   describe("getPoolData & getPoolDataAtIndex", () => {
     it("Successfully reads getPoolData", async () => {
       await poolRegistry.addPool(usdv2Data)
@@ -269,6 +279,24 @@ describe("Registry", async () => {
     })
   })
 
+  describe("getUnderlyingTokens", () => {
+    it("Successfully returns correct array of underlying tokens", async () => {
+      await poolRegistry.addPool(usdv2InputData)
+      const underlyingTokens = await poolRegistry.getUnderlyingTokens(
+        usdv2Data.poolAddress,
+      )
+      expect(underlyingTokens).to.deep.equal(usdv2Data.underlyingTokens)
+
+      await poolRegistry.addPool(susdMetaV2InputData)
+      const underlyingTokensMeta = await poolRegistry.getUnderlyingTokens(
+        susdMetaV2Data.poolAddress,
+      )
+      expect(underlyingTokensMeta).to.deep.equal(
+        susdMetaV2Data.underlyingTokens,
+      )
+    })
+  })
+
   describe("getBalances", () => {
     it("Successfully fetches balances for given pool address", async () => {
       await poolRegistry.addPool(usdv2Data)
@@ -318,6 +346,19 @@ describe("Registry", async () => {
         await poolRegistry.getEligiblePools(dai, susd),
         "dai, susd",
       ).to.eql([susdPoolDeposit])
+    })
+  })
+
+  describe("getPaused", () => {
+    it("Successfully gets paused status", async () => {
+      await poolRegistry.addPool(usdv2Data)
+      expect(await poolRegistry.callStatic.getPaused(usdv2Data.poolAddress)).to
+        .be.false
+      ;(
+        (await ethers.getContractAt("Swap", usdv2Data.poolAddress)) as Swap
+      ).pause()
+      expect(await poolRegistry.callStatic.getPaused(usdv2Data.poolAddress)).to
+        .be.true
     })
   })
 
