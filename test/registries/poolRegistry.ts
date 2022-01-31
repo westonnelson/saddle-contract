@@ -2,6 +2,7 @@
 /*eslint max-len: ["error", { "code": 150 }]*/
 
 import { BigNumber, ContractFactory, Signer } from "ethers"
+import { ethers } from "hardhat"
 import { solidity } from "ethereum-waffle"
 
 import chai from "chai"
@@ -12,7 +13,7 @@ import {
   PoolDataStruct,
   PoolInputDataStruct,
 } from "../../build/typechain/PoolRegistry"
-import { Swap } from "../../build/typechain"
+import { Swap, SwapGuarded } from "../../build/typechain"
 
 chai.use(solidity)
 const { expect } = chai
@@ -33,8 +34,10 @@ describe("Registry", async () => {
   let registryFactory: ContractFactory
   let usdv2Data: PoolDataStruct
   let susdMetaV2Data: PoolDataStruct
+  let guardedBtcData: PoolDataStruct
   let usdv2InputData: PoolInputDataStruct
   let susdMetaV2InputData: PoolInputDataStruct
+  let guardedBtcInputData: PoolInputDataStruct
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
@@ -115,12 +118,49 @@ describe("Registry", async () => {
         isRemoved: false,
       }
 
-      for(const token of usdv2Data.tokens) {
-          const tokenContract = await ethers.getContractAt("GenericERC20", token)
-          await tokenContract.approve(usdv2Data.poolAddress, MAX_UINT256)
+      guardedBtcInputData = {
+        poolAddress: (await get("SaddleBTCPool")).address,
+        typeOfAsset: PoolType.BTC,
+        poolName: ethers.utils.formatBytes32String("BTC guarded pool"),
+        targetAddress: (await get("SaddleBTCPool")).address,
+        metaSwapDepositAddress: ZERO_ADDRESS,
+        pid: BigNumber.from(0),
+        isSaddleApproved: true,
+        isRemoved: false,
       }
-      const usdPoolContract = await ethers.getContract("SaddleUSDPoolV2") as Swap
-      await usdPoolContract.addLiquidity([String(1e18), String(1e6), String(1e6)], 0, MAX_UINT256)
+
+      guardedBtcData = {
+        poolAddress: (await get("SaddleBTCPool")).address,
+        lpToken: (await get("SaddleBTCPoolLPToken")).address,
+        typeOfAsset: PoolType.BTC,
+        poolName: ethers.utils.formatBytes32String("BTC guarded pool"),
+        targetAddress: (await get("SaddleBTCPool")).address,
+        tokens: [
+          (await get("TBTC")).address,
+          (await get("WBTC")).address,
+          (await get("RENBTC")).address,
+          (await get("SBTC")).address,
+        ],
+        underlyingTokens: [],
+        basePoolAddress: ZERO_ADDRESS,
+        metaSwapDepositAddress: ZERO_ADDRESS,
+        pid: BigNumber.from(0),
+        isSaddleApproved: true,
+        isRemoved: false,
+      }
+
+      for (const token of usdv2Data.tokens) {
+        const tokenContract = await ethers.getContractAt("GenericERC20", token)
+        await tokenContract.approve(usdv2Data.poolAddress, MAX_UINT256)
+      }
+      const usdPoolContract = (await ethers.getContract(
+        "SaddleUSDPoolV2",
+      )) as Swap
+      await usdPoolContract.addLiquidity(
+        [String(1e18), String(1e6), String(1e6)],
+        0,
+        MAX_UINT256,
+      )
     },
   )
 
@@ -138,7 +178,7 @@ describe("Registry", async () => {
         poolAddress: ZERO_ADDRESS,
       }
       await expect(poolRegistry.addPool(incorrectData)).to.be.revertedWith(
-        "poolAddress == 0",
+        "PR: poolAddress is 0",
       )
     })
     it("Reverts when adding a meta pool without adding the base pool", async () => {
@@ -149,7 +189,7 @@ describe("Registry", async () => {
   })
 
   describe("getPoolData & getPoolDataAtIndex", () => {
-    it("Successfully reads saddlePoolData", async () => {
+    it("Successfully reads getPoolData", async () => {
       await poolRegistry.addPool(usdv2Data)
       await poolRegistry.addPool(susdMetaV2Data)
       let fetchedByAddress = await poolRegistry.getPoolData(
@@ -171,6 +211,18 @@ describe("Registry", async () => {
       expect(fetchedByIndex).to.eql(Object.values(susdMetaV2Data))
     })
 
+    it("Successfully reads getPoolData of guarded pools", async () => {
+      await poolRegistry.addPool(guardedBtcInputData)
+      const fetchedByAddress = await poolRegistry.getPoolData(
+        (
+          await get("SaddleBTCPool")
+        ).address,
+      )
+      const fetchedByIndex = await poolRegistry.getPoolDataAtIndex(0)
+      expect(fetchedByAddress).to.eql(Object.values(guardedBtcData))
+      expect(fetchedByIndex).to.eql(Object.values(guardedBtcData))
+    })
+
     it("Reverts when out of range", async () => {
       await expect(poolRegistry.getPoolDataAtIndex(0)).to.be.revertedWith(
         "PR: Index out of bounds",
@@ -178,39 +230,48 @@ describe("Registry", async () => {
     })
 
     it("Reverts when address not found", async () => {
-      await expect(
-        poolRegistry.getPoolData(ZERO_ADDRESS),
-      ).to.be.revertedWith("PR: No matching pool found")
+      await expect(poolRegistry.getPoolData(ZERO_ADDRESS)).to.be.revertedWith(
+        "PR: No matching pool found",
+      )
     })
   })
 
   describe("getVirtualPrice", () => {
-    it("Successfully fetches virtual price for given pool address", async() => {
+    it("Successfully fetches virtual price for given pool address", async () => {
       await poolRegistry.addPool(usdv2Data)
-      expect(await poolRegistry.callStatic.getVirtualPrice(usdv2Data.poolAddress)).to.eq(BIG_NUMBER_1E18)
-    }) 
+      expect(
+        await poolRegistry.callStatic.getVirtualPrice(usdv2Data.poolAddress),
+      ).to.eq(BIG_NUMBER_1E18)
+    })
   })
 
   describe("getA", () => {
-    it("Successfully fetches A for given pool address", async() => {
+    it("Successfully fetches A for given pool address", async () => {
       await poolRegistry.addPool(usdv2Data)
-      expect(await poolRegistry.callStatic.getA(usdv2Data.poolAddress)).to.eq(200)
-    }) 
+      expect(await poolRegistry.callStatic.getA(usdv2Data.poolAddress)).to.eq(
+        200,
+      )
+    })
   })
 
   describe("getTokens", () => {
-    it("Successfully fetches tokens for given pool address", async() => {
+    it("Successfully fetches tokens for given pool address", async () => {
       await poolRegistry.addPool(usdv2Data)
-      expect(await poolRegistry.callStatic.getTokens(usdv2Data.poolAddress)).to.eql(usdv2Data.tokens)
+      expect(
+        await poolRegistry.callStatic.getTokens(usdv2Data.poolAddress),
+      ).to.eql(usdv2Data.tokens)
     })
   })
 
   describe("getBalances", () => {
-    it("Successfully fetches balances for given pool address", async() => {
+    it("Successfully fetches balances for given pool address", async () => {
       await poolRegistry.addPool(usdv2Data)
-      expect(await poolRegistry.callStatic.getBalances(usdv2Data.poolAddress)).to.eql(
-        [usdv2Data.tokens, [BIG_NUMBER_1E18, BigNumber.from(1e6), BigNumber.from(1e6)]]
-        )
+      expect(
+        await poolRegistry.callStatic.getBalances(usdv2Data.poolAddress),
+      ).to.eql([
+        usdv2Data.tokens,
+        [BIG_NUMBER_1E18, BigNumber.from(1e6), BigNumber.from(1e6)],
+      ])
     })
   })
 
@@ -251,6 +312,38 @@ describe("Registry", async () => {
         await poolRegistry.getEligiblePools(dai, susd),
         "dai, susd",
       ).to.eql([susdPoolDeposit])
+    })
+  })
+
+  describe("getSwapStorage", () => {
+    it("Successfully fetches swapStorage from a regular Swap", async () => {
+      await poolRegistry.addPool(usdv2Data)
+      const swap = (await ethers.getContractAt(
+        "Swap",
+        usdv2Data.poolAddress,
+      )) as Swap
+      expect(await poolRegistry.getSwapStorage(usdv2Data.poolAddress)).to.eql(
+        await swap.swapStorage(),
+      )
+    })
+
+    it("Successfully fetches swapStorage from a guarded Swap", async () => {
+      await poolRegistry.addPool(guardedBtcInputData)
+      const guardedSwap = (await ethers.getContractAt(
+        "SwapGuarded",
+        guardedBtcInputData.poolAddress,
+      )) as SwapGuarded
+      const swapStorage = [...(await guardedSwap.swapStorage())]
+      swapStorage.splice(6, 1)
+      expect(
+        await poolRegistry.getSwapStorage(guardedBtcInputData.poolAddress),
+      ).to.eql(swapStorage)
+    })
+
+    it("Reverts when querying an unregistered pool address", async () => {
+      await expect(
+        poolRegistry.getSwapStorage(guardedBtcInputData.poolAddress),
+      ).to.be.revertedWith("PR: No matching pool found")
     })
   })
 })

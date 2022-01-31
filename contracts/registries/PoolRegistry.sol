@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/ISwap.sol";
+import "../interfaces/ISwapGuarded.sol";
 import "../interfaces/IMetaSwap.sol";
 import "../interfaces/IPoolRegistry.sol";
 import "../meta/MetaSwapDeposit.sol";
@@ -85,13 +86,18 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
     function addPool(PoolInputData memory inputData)
         external
         override
-        managerOnly
         nonReentrant
     {
-        require(inputData.poolAddress != address(0), "poolAddress == 0");
+        require(
+            hasRole(SADDLE_MANAGER_ROLE, msg.sender) ||
+                (hasRole(COMMUNITY_MANAGER_ROLE, msg.sender) &&
+                    !inputData.isSaddleApproved),
+            "PR: Only managers can add pools"
+        );
+        require(inputData.poolAddress != address(0), "PR: poolAddress is 0");
         require(
             poolsIndexOfPlusOne[inputData.poolAddress] == 0,
-            "Pool is already added"
+            "PR: Pool is already added"
         );
 
         address[] memory tokens = new address[](8);
@@ -114,17 +120,13 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
 
         // Get lp token address
         (, , , , , , data.lpToken) = _getSwapStorage(inputData.poolAddress);
-        require(
-            Ownable(data.lpToken).owner() == inputData.poolAddress,
-            "lptoken owner mismatch"
-        );
 
         // Check token addresses
         for (uint8 i = 0; i < 8; i++) {
             try ISwap(inputData.poolAddress).getToken(i) returns (
                 IERC20 token
             ) {
-                require(address(token) != address(0));
+                require(address(token) != address(0), "PR: token is 0");
                 tokens[i] = address(token);
                 // add combinations of tokens to eligible pairs map
                 for (uint8 j = 0; j < i; j++) {
@@ -147,7 +149,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
             );
             require(
                 poolsIndexOfPlusOne[data.basePoolAddress] > 0,
-                "base pool not found"
+                "PR: base pool not found"
             );
 
             // Get underlying tokens
@@ -157,7 +159,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
                         i
                     )
                 returns (IERC20 token) {
-                    require(address(token) != address(0));
+                    require(address(token) != address(0), "PR: token is 0");
                     underlyingTokens[i] = address(token);
                     // add combinations of tokens to eligible pairs map
                     // i reprents the indexes of the underlying tokens of metaLPToken.
@@ -334,7 +336,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
         hasMatchingPool(poolAddress)
         returns (uint256 swapFee)
     {
-        (, , , , swapFee, , ) = ISwap(poolAddress).swapStorage();
+        (, , , , swapFee, , ) = _getSwapStorage(poolAddress);
     }
 
     /// @inheritdoc IPoolRegistry
@@ -345,7 +347,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
         hasMatchingPool(poolAddress)
         returns (uint256 adminFee)
     {
-        (, , , , , adminFee, ) = ISwap(poolAddress).swapStorage();
+        (, , , , , adminFee, ) = _getSwapStorage(poolAddress);
     }
 
     /// @inheritdoc IPoolRegistry
@@ -380,7 +382,48 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
             address lpToken
         )
     {
-        return ISwap(poolAddress).swapStorage();
+        try ISwap(poolAddress).swapStorage() returns (
+            uint256 _initialA,
+            uint256 _futureA,
+            uint256 _initialATime,
+            uint256 _futureATime,
+            uint256 _swapFee,
+            uint256 _adminFee,
+            address _lpToken
+        ) {
+            return (
+                _initialA,
+                _futureA,
+                _initialATime,
+                _futureATime,
+                _swapFee,
+                _adminFee,
+                _lpToken
+            );
+        } catch {
+            try ISwapGuarded(poolAddress).swapStorage() returns (
+                uint256 _initialA,
+                uint256 _futureA,
+                uint256 _initialATime,
+                uint256 _futureATime,
+                uint256 _swapFee,
+                uint256 _adminFee,
+                uint256,
+                address _lpToken
+            ) {
+                return (
+                    _initialA,
+                    _futureA,
+                    _initialATime,
+                    _futureATime,
+                    _swapFee,
+                    _adminFee,
+                    _lpToken
+                );
+            } catch {
+                revert("PR: No swap storage found");
+            }
+        }
     }
 
     /// @inheritdoc IPoolRegistry
@@ -434,10 +477,16 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
     }
 
     /// @inheritdoc IPoolRegistry
-    function getBalances(address poolAddress) external view override hasMatchingPool(poolAddress) returns (address[] memory tokens, uint256[] memory balances) {
+    function getBalances(address poolAddress)
+        external
+        view
+        override
+        hasMatchingPool(poolAddress)
+        returns (address[] memory tokens, uint256[] memory balances)
+    {
         tokens = pools[poolsIndexOfPlusOne[poolAddress] - 1].tokens;
         balances = new uint256[](tokens.length);
-        for(uint8 i = 0; i < tokens.length; i++) {
+        for (uint8 i = 0; i < tokens.length; i++) {
             balances[i] = ISwap(poolAddress).getTokenBalance(i);
         }
     }
