@@ -115,11 +115,14 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
             inputData.metaSwapDepositAddress,
             inputData.pid,
             inputData.isSaddleApproved,
-            inputData.isRemoved
+            inputData.isRemoved,
+            inputData.isGuarded
         );
 
         // Get lp token address
-        (, , , , , , data.lpToken) = _getSwapStorage(inputData.poolAddress);
+        data.lpToken = inputData.isGuarded
+            ? _getSwapStorageGuarded(inputData.poolAddress).lpToken
+            : _getSwapStorage(inputData.poolAddress).lpToken;
 
         // Check token addresses
         for (uint8 i = 0; i < 8; i++) {
@@ -329,101 +332,49 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
     }
 
     /// @inheritdoc IPoolRegistry
-    function getSwapFee(address poolAddress)
-        external
-        view
-        override
-        hasMatchingPool(poolAddress)
-        returns (uint256 swapFee)
-    {
-        (, , , , swapFee, , ) = _getSwapStorage(poolAddress);
-    }
-
-    /// @inheritdoc IPoolRegistry
-    function getAdminFee(address poolAddress)
-        external
-        view
-        override
-        hasMatchingPool(poolAddress)
-        returns (uint256 adminFee)
-    {
-        (, , , , , adminFee, ) = _getSwapStorage(poolAddress);
-    }
-
-    /// @inheritdoc IPoolRegistry
     function getSwapStorage(address poolAddress)
         external
         view
         override
         hasMatchingPool(poolAddress)
-        returns (
-            uint256 initialA,
-            uint256 futureA,
-            uint256 initialATime,
-            uint256 futureATime,
-            uint256 swapFee,
-            uint256 adminFee,
-            address lpToken
-        )
+        returns (SwapStorageData memory swapStorageData)
     {
-        return _getSwapStorage(poolAddress);
+        swapStorageData = pools[poolsIndexOfPlusOne[poolAddress] - 1].isGuarded
+            ? _getSwapStorageGuarded(poolAddress)
+            : _getSwapStorage(poolAddress);
     }
 
     function _getSwapStorage(address poolAddress)
         internal
         view
-        returns (
-            uint256 initialA,
-            uint256 futureA,
-            uint256 initialATime,
-            uint256 futureATime,
-            uint256 swapFee,
-            uint256 adminFee,
-            address lpToken
-        )
+        returns (SwapStorageData memory swapStorageData)
     {
-        try ISwap(poolAddress).swapStorage() returns (
-            uint256 _initialA,
-            uint256 _futureA,
-            uint256 _initialATime,
-            uint256 _futureATime,
-            uint256 _swapFee,
-            uint256 _adminFee,
-            address _lpToken
-        ) {
-            return (
-                _initialA,
-                _futureA,
-                _initialATime,
-                _futureATime,
-                _swapFee,
-                _adminFee,
-                _lpToken
-            );
-        } catch {
-            try ISwapGuarded(poolAddress).swapStorage() returns (
-                uint256 _initialA,
-                uint256 _futureA,
-                uint256 _initialATime,
-                uint256 _futureATime,
-                uint256 _swapFee,
-                uint256 _adminFee,
-                uint256,
-                address _lpToken
-            ) {
-                return (
-                    _initialA,
-                    _futureA,
-                    _initialATime,
-                    _futureATime,
-                    _swapFee,
-                    _adminFee,
-                    _lpToken
-                );
-            } catch {
-                revert("PR: No swap storage found");
-            }
-        }
+        (
+            swapStorageData.initialA,
+            swapStorageData.futureA,
+            swapStorageData.initialATime,
+            swapStorageData.futureATime,
+            swapStorageData.swapFee,
+            swapStorageData.adminFee,
+            swapStorageData.lpToken
+        ) = ISwap(poolAddress).swapStorage();
+    }
+
+    function _getSwapStorageGuarded(address poolAddress)
+        internal
+        view
+        returns (SwapStorageData memory swapStorageData)
+    {
+        (
+            swapStorageData.initialA,
+            swapStorageData.futureA,
+            swapStorageData.initialATime,
+            swapStorageData.futureATime,
+            swapStorageData.swapFee,
+            swapStorageData.adminFee,
+            ,
+            swapStorageData.lpToken
+        ) = ISwapGuarded(poolAddress).swapStorage();
     }
 
     /// @inheritdoc IPoolRegistry

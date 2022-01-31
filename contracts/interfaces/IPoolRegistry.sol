@@ -12,9 +12,10 @@ interface IPoolRegistry {
         bytes32 poolName;
         address targetAddress;
         address metaSwapDepositAddress;
-        uint80 pid;
+        uint72 pid;
         bool isSaddleApproved;
         bool isRemoved;
+        bool isGuarded;
     }
 
     struct PoolData {
@@ -27,9 +28,20 @@ interface IPoolRegistry {
         address[] underlyingTokens;
         address basePoolAddress;
         address metaSwapDepositAddress;
-        uint80 pid;
+        uint72 pid;
         bool isSaddleApproved;
         bool isRemoved;
+        bool isGuarded;
+    }
+
+    struct SwapStorageData {
+        uint256 initialA;
+        uint256 futureA;
+        uint256 initialATime;
+        uint256 futureATime;
+        uint256 swapFee;
+        uint256 adminFee;
+        address lpToken;
     }
 
     /* Public Variables */
@@ -112,20 +124,20 @@ interface IPoolRegistry {
      */
     function getPaused(address poolAddress) external view returns (bool);
 
-    /**
-     * @notice Returns the swap fee of the given pool address
-     * @param poolAddress address of the pool to read
-     */
-    function getSwapFee(address poolAddress) external view returns (uint256);
+    // /**
+    //  * @notice Returns the swap fee of the given pool address
+    //  * @param poolAddress address of the pool to read
+    //  */
+    // function getSwapFee(address poolAddress) external view returns (uint256);
 
-    /**
-     * @notice Returns the admin fee of the given pool address
-     * @param poolAddress address of the pool to read
-     */
-    function getAdminFee(address poolAddress)
-        external
-        view
-        returns (uint256 adminFee);
+    // /**
+    //  * @notice Returns the admin fee of the given pool address
+    //  * @param poolAddress address of the pool to read
+    //  */
+    // function getAdminFee(address poolAddress)
+    //     external
+    //     view
+    //     returns (uint256 adminFee);
 
     /**
      * @notice Returns the SwapStorage struct of the given pool address
@@ -134,15 +146,7 @@ interface IPoolRegistry {
     function getSwapStorage(address poolAddress)
         external
         view
-        returns (
-            uint256 initialA,
-            uint256 futureA,
-            uint256 initialATime,
-            uint256 futureATime,
-            uint256 swapFee,
-            uint256 adminFee,
-            address lpToken
-        );
+        returns (SwapStorageData memory swapStorageData);
 
     /**
      * @notice Returns the tokens of the given pool address

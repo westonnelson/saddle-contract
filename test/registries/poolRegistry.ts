@@ -13,7 +13,7 @@ import {
   PoolDataStruct,
   PoolInputDataStruct,
 } from "../../build/typechain/PoolRegistry"
-import { Swap, SwapGuarded } from "../../build/typechain"
+import { ISwapGuarded, Swap } from "../../build/typechain"
 
 chai.use(solidity)
 const { expect } = chai
@@ -61,6 +61,7 @@ describe("Registry", async () => {
         pid: BigNumber.from(0),
         isSaddleApproved: true,
         isRemoved: false,
+        isGuarded: false,
       }
 
       usdv2Data = {
@@ -80,6 +81,7 @@ describe("Registry", async () => {
         pid: BigNumber.from(0),
         isSaddleApproved: true,
         isRemoved: false,
+        isGuarded: false,
       }
 
       susdMetaV2InputData = {
@@ -92,6 +94,7 @@ describe("Registry", async () => {
         pid: BigNumber.from(1),
         isSaddleApproved: true,
         isRemoved: false,
+        isGuarded: false,
       }
 
       susdMetaV2Data = {
@@ -116,6 +119,7 @@ describe("Registry", async () => {
         pid: BigNumber.from(1),
         isSaddleApproved: true,
         isRemoved: false,
+        isGuarded: false,
       }
 
       guardedBtcInputData = {
@@ -127,6 +131,7 @@ describe("Registry", async () => {
         pid: BigNumber.from(0),
         isSaddleApproved: true,
         isRemoved: false,
+        isGuarded: true,
       }
 
       guardedBtcData = {
@@ -147,6 +152,7 @@ describe("Registry", async () => {
         pid: BigNumber.from(0),
         isSaddleApproved: true,
         isRemoved: false,
+        isGuarded: true,
       }
 
       for (const token of usdv2Data.tokens) {
@@ -330,9 +336,9 @@ describe("Registry", async () => {
     it("Successfully fetches swapStorage from a guarded Swap", async () => {
       await poolRegistry.addPool(guardedBtcInputData)
       const guardedSwap = (await ethers.getContractAt(
-        "SwapGuarded",
+        "ISwapGuarded",
         guardedBtcInputData.poolAddress,
-      )) as SwapGuarded
+      )) as ISwapGuarded
       const swapStorage = [...(await guardedSwap.swapStorage())]
       swapStorage.splice(6, 1)
       expect(
