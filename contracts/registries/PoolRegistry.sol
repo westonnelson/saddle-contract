@@ -12,7 +12,6 @@ import "../interfaces/ISwapGuarded.sol";
 import "../interfaces/IMetaSwap.sol";
 import "../interfaces/IPoolRegistry.sol";
 import "../meta/MetaSwapDeposit.sol";
-import "hardhat/console.sol";
 
 /**
  * @title PoolRegistry
@@ -54,6 +53,18 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
 
     /**
      * @notice Add a new registry entry to the master list.
+     * @param poolAddress address of the added pool
+     * @param index index of the added pool in the pools list
+     * @param poolData added pool data
+     */
+    event AddCommunityPool(
+        address indexed poolAddress,
+        uint256 index,
+        PoolData poolData
+    );
+
+    /**
+     * @notice Add a new registry entry to the master list.
      * @param poolAddress address of the updated pool
      * @param index index of the updated pool in the pools list
      * @param poolData updated pool data
@@ -84,15 +95,57 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
     }
 
     /// @inheritdoc IPoolRegistry
+    function addCommunityPool(PoolData memory data) external override {
+        require(
+            hasRole(COMMUNITY_MANAGER_ROLE, msg.sender),
+            "PR: Only managers can add pools"
+        );
+
+        // Check token addresses
+        for (uint8 i = 0; i < data.tokens.length; i++) {
+            for (uint8 j = 0; j < i; j++) {
+                eligiblePairsMap[
+                    uint160(address(data.tokens[i])) ^
+                        uint160(address(data.tokens[j]))
+                ].push(data.poolAddress);
+            }
+        }
+
+        // Check meta swap deposit address
+        if (data.metaSwapDepositAddress != address(0)) {
+            for (uint8 i = 0; i < data.underlyingTokens.length; i++) {
+                // add combinations of tokens to eligible pairs map
+                // i reprents the indexes of the underlying tokens of metaLPToken.
+                // j represents the indexes of MetaSwap level tokens that are not metaLPToken.
+                // Example: tokens = [sUSD, baseLPToken]
+                //         underlyingTokens = [sUSD, DAI, USDC, USDT]
+                // i represents index of [DAI, USDC, USDT] in underlyingTokens
+                // j represents index of [sUSD] in underlyingTokens
+                if (i > data.tokens.length.sub(2))
+                    for (uint256 j = 0; j < data.tokens.length - 1; j++) {
+                        eligiblePairsMap[
+                            uint160(address(data.underlyingTokens[i])) ^
+                                uint160(address(data.underlyingTokens[j]))
+                        ].push(data.metaSwapDepositAddress);
+                    }
+            }
+        }
+
+        pools.push(data);
+        poolsIndexOfPlusOne[data.poolAddress] = pools.length;
+        poolsIndexOfNamePlusOne[data.poolName] = pools.length;
+
+        emit AddCommunityPool(data.poolAddress, pools.length - 1, data);
+    }
+
+    /// @inheritdoc IPoolRegistry
     function addPool(PoolInputData memory inputData)
         external
         override
         nonReentrant
     {
         require(
-            hasRole(SADDLE_MANAGER_ROLE, msg.sender) ||
-                (hasRole(COMMUNITY_MANAGER_ROLE, msg.sender) &&
-                    !inputData.isSaddleApproved),
+            hasRole(SADDLE_MANAGER_ROLE, msg.sender),
             "PR: Only managers can add pools"
         );
         require(inputData.poolAddress != address(0), "PR: poolAddress is 0");
@@ -101,8 +154,8 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
             "PR: Pool is already added"
         );
 
-        address[] memory tokens = new address[](8);
-        address[] memory underlyingTokens = new address[](8);
+        IERC20[] memory tokens = new IERC20[](8);
+        IERC20[] memory underlyingTokens = new IERC20[](8);
 
         PoolData memory data = PoolData(
             inputData.poolAddress,
@@ -131,11 +184,13 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
                 IERC20 token
             ) {
                 require(address(token) != address(0), "PR: token is 0");
-                tokens[i] = address(token);
+                tokens[i] = token;
                 // add combinations of tokens to eligible pairs map
                 for (uint8 j = 0; j < i; j++) {
-                    eligiblePairsMap[uint160(tokens[i]) ^ uint160(tokens[j])]
-                        .push(inputData.poolAddress);
+                    eligiblePairsMap[
+                        uint160(address(tokens[i])) ^
+                            uint160(address(tokens[j]))
+                    ].push(inputData.poolAddress);
                 }
             } catch {
                 assembly {
@@ -164,7 +219,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
                     )
                 returns (IERC20 token) {
                     require(address(token) != address(0), "PR: token is 0");
-                    underlyingTokens[i] = address(token);
+                    underlyingTokens[i] = token;
                     // add combinations of tokens to eligible pairs map
                     // i reprents the indexes of the underlying tokens of metaLPToken.
                     // j represents the indexes of MetaSwap level tokens that are not metaLPToken.
@@ -175,8 +230,8 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
                     if (i > tokens.length.sub(2))
                         for (uint256 j = 0; j < tokens.length - 1; j++) {
                             eligiblePairsMap[
-                                uint160(underlyingTokens[i]) ^
-                                    uint160(underlyingTokens[j])
+                                uint160(address(underlyingTokens[i])) ^
+                                    uint160(address(underlyingTokens[j]))
                             ].push(inputData.metaSwapDepositAddress);
                         }
                 } catch {
@@ -384,7 +439,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
         view
         override
         hasMatchingPool(poolAddress)
-        returns (address[] memory)
+        returns (IERC20[] memory)
     {
         uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
         return pools[poolIndex - 1].tokens;
@@ -396,7 +451,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
         view
         override
         hasMatchingPool(poolAddress)
-        returns (address[] memory)
+        returns (IERC20[] memory)
     {
         uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
         return pools[poolIndex - 1].underlyingTokens;
@@ -427,7 +482,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
         view
         override
         hasMatchingPool(poolAddress)
-        returns (address[] memory tokens, uint256[] memory balances)
+        returns (IERC20[] memory tokens, uint256[] memory balances)
     {
         tokens = pools[poolsIndexOfPlusOne[poolAddress] - 1].tokens;
         balances = new uint256[](tokens.length);

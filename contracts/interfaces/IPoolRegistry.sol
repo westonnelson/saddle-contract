@@ -3,6 +3,8 @@
 pragma solidity ^0.6.0;
 pragma experimental ABIEncoderV2;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 interface IPoolRegistry {
     /* Structs */
 
@@ -24,8 +26,8 @@ interface IPoolRegistry {
         uint8 typeOfAsset;
         bytes32 poolName;
         address targetAddress;
-        address[] tokens;
-        address[] underlyingTokens;
+        IERC20[] tokens;
+        IERC20[] underlyingTokens;
         address basePoolAddress;
         address metaSwapDepositAddress;
         uint72 pid;
@@ -63,6 +65,14 @@ interface IPoolRegistry {
      * Only Swap and MetaSwap contracts need to be addeded.
      */
     function addPool(PoolInputData memory inputData) external;
+
+    /**
+     * @notice Add a new pool to the registry
+     * @param data PoolInputData struct for the new pool
+     * @dev Before adding a meta pool, the user must first add the underlying base pool.
+     * Only Swap and MetaSwap contracts need to be addeded.
+     */
+    function addCommunityPool(PoolData memory data) external;
 
     /**
      * @notice Approve community deployed pools to be upgraded as Saddle owned
@@ -155,7 +165,7 @@ interface IPoolRegistry {
     function getTokens(address poolAddress)
         external
         view
-        returns (address[] memory);
+        returns (IERC20[] memory);
 
     /**
      * @notice Returns the underlhying tokens of the given pool address. Base pools will return an empty array.
@@ -164,7 +174,7 @@ interface IPoolRegistry {
     function getUnderlyingTokens(address poolAddress)
         external
         view
-        returns (address[] memory);
+        returns (IERC20[] memory);
 
     /**
      * @notice Returns number of entries in the registry. Includes removed pools
@@ -192,5 +202,5 @@ interface IPoolRegistry {
     function getBalances(address poolAddress)
         external
         view
-        returns (address[] memory tokens, uint256[] memory balances);
+        returns (IERC20[] memory tokens, uint256[] memory balances);
 }

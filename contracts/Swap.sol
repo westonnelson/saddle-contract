@@ -483,7 +483,7 @@ contract Swap is OwnerPausableUpgradeable, ReentrancyGuardUpgradeable {
     /**
      * @notice Withdraw all admin fees to the contract owner
      */
-    function withdrawAdminFees() external onlyOwner {
+    function withdrawAdminFees() external virtual onlyOwner {
         swapStorage.withdrawAdminFees(owner());
     }
 
