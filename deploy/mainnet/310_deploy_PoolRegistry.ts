@@ -13,8 +13,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     from: deployer,
     log: true,
     skipIfAlreadyDeployed: true,
-    args: [MULTISIG_ADDRESSES[chaindId], MULTISIG_ADDRESSES[chaindId]],
+    args: [deployer, MULTISIG_ADDRESSES[chaindId]],
   })
+  // NOTE: admin is set to deployer temporarily so that
+  // we can assign COMMUNITY_MANAGER_ROLE to PermissionlessDeployer contract
 }
 export default func
 func.tags = ["PoolRegistry"]

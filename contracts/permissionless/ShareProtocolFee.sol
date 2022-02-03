@@ -30,5 +30,8 @@ abstract contract ShareProtocolFee {
         );
     }
 
+    /**
+     * @notice Withdraws admin fees to appropriate addresses
+     */
     function withdrawAdminFees() external payable virtual;
 }

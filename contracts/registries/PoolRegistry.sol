@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "../helper/BaseBoringBatchable.sol";
 import "../interfaces/ISwap.sol";
 import "../interfaces/ISwapGuarded.sol";
 import "../interfaces/IMetaSwap.sol";
@@ -17,7 +18,12 @@ import "../meta/MetaSwapDeposit.sol";
  * @title PoolRegistry
  * @notice This contract holds list of pools deployed.
  */
-contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
+contract PoolRegistry is
+    AccessControl,
+    ReentrancyGuard,
+    BaseBoringBatchable,
+    IPoolRegistry
+{
     using SafeMath for uint256;
 
     /// @notice Role responsible for managing pools.

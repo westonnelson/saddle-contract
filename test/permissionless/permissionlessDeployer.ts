@@ -49,11 +49,8 @@ describe("PermissionlessDeployer", async () => {
         "PermissionlessDeployer",
       )) as PermissionlessDeployer
       poolRegistry = (await ethers.getContract("PoolRegistry")) as PoolRegistry
-      poolRegistry.grantRole(
-        await poolRegistry.COMMUNITY_MANAGER_ROLE(),
-        permissionlessDeployer.address,
-      )
 
+      // Deploys a community pool and registers it in the PoolRegistry
       deploySwapInput = {
         poolName: ethers.utils.formatBytes32String("FraxUSD"),
         tokens: [
@@ -70,13 +67,13 @@ describe("PermissionlessDeployer", async () => {
         owner: deployerAddress,
         typeOfAsset: PoolType.USD,
       }
-
       await permissionlessDeployer.deploySwap(deploySwapInput)
 
       const poolData: PoolDataStruct = await poolRegistry.getPoolDataByName(
         ethers.utils.formatBytes32String("FraxUSD"),
       )
 
+      // Deploys a community meta pool and registers it in the PoolRegistry
       deployMetaSwapInput = {
         poolName: ethers.utils.formatBytes32String("sUSD-FraxUSD"),
         tokens: [(await get("SUSD")).address, poolData.lpToken],
@@ -90,7 +87,6 @@ describe("PermissionlessDeployer", async () => {
         typeOfAsset: PoolType.USD,
         baseSwap: poolData.poolAddress,
       }
-
       await permissionlessDeployer.deployMetaSwap(deployMetaSwapInput)
     },
   )
@@ -103,6 +99,48 @@ describe("PermissionlessDeployer", async () => {
     it("Successfully reads poolRegistryCached ", async () => {
       expect(await permissionlessDeployer.poolRegistryCached()).to.eq(
         (await get("PoolRegistry")).address,
+      )
+    })
+  })
+
+  describe("setTargetLPToken", () => {
+    it("Successfully sets targetLPToken", async () => {
+      // Using an arbitrary address to test
+      const targetLPToken = (await get("DAI")).address
+      await permissionlessDeployer.setTargetLPToken(targetLPToken)
+      expect(await permissionlessDeployer.targetLPToken()).to.eq(targetLPToken)
+    })
+  })
+
+  describe("setTargetSwap", () => {
+    it("Successfully sets targetSwap", async () => {
+      // Using an arbitrary address to test
+      const targetSwap = (await get("DAI")).address
+      await permissionlessDeployer.setTargetSwap(targetSwap)
+      expect(await permissionlessDeployer.targetSwap()).to.eq(targetSwap)
+    })
+  })
+
+  describe("setTargetMetaSwap", () => {
+    it("Successfully sets targetMetaSwap", async () => {
+      // Using an arbitrary address to test
+      const targetMetaSwap = (await get("DAI")).address
+      await permissionlessDeployer.setTargetMetaSwap(targetMetaSwap)
+      expect(await permissionlessDeployer.targetMetaSwap()).to.eq(
+        targetMetaSwap,
+      )
+    })
+  })
+
+  describe("setTargetMetaSwapDeposit", () => {
+    it("Successfully sets targetMetaSwapDeposit", async () => {
+      // Using an arbitrary address to test
+      const targetMetaSwapDeposit = (await get("DAI")).address
+      await permissionlessDeployer.setTargetMetaSwapDeposit(
+        targetMetaSwapDeposit,
+      )
+      expect(await permissionlessDeployer.targetMetaSwapDeposit()).to.eq(
+        targetMetaSwapDeposit,
       )
     })
   })

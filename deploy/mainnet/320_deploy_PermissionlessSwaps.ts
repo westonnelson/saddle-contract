@@ -1,10 +1,11 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types"
 import { DeployFunction } from "hardhat-deploy/types"
 import { MULTISIG_ADDRESSES } from "../../utils/accounts"
+import { PoolRegistry } from "../../build/typechain"
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts, getChainId, ethers } = hre
-  const { deploy, get, getOrNull, execute } = deployments
+  const { deploy, get, getOrNull, execute, read } = deployments
   const { deployer } = await getNamedAccounts()
 
   const permissionlessSwap = await getOrNull("PermissionlessSwapFlashLoan")
@@ -69,7 +70,39 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
       ).address,
     )
 
-    // TODO: Grant COMMUNITY_MANAGER_ROLE to PoolRegistry with the MultiSig
+    const poolRegistry: PoolRegistry = await ethers.getContract("PoolRegistry")
+
+    // 1. Grant COMMUNITY_MANAGER_ROLE to PermissionlessDeployer
+    // 2. Grant DEFAULT_ADMIN_ROLE to Multisig on this chain
+    // 3. Renounce DEFAULT_ADMIN_ROLE from deployer
+    const batchCall = [
+      await poolRegistry.populateTransaction.grantRole(
+        await poolRegistry.COMMUNITY_MANAGER_ROLE(),
+        (
+          await get("PermissionlessDeployer")
+        ).address,
+      ),
+      await poolRegistry.populateTransaction.grantRole(
+        await poolRegistry.DEFAULT_ADMIN_ROLE(),
+        MULTISIG_ADDRESSES[await getChainId()],
+      ),
+      await poolRegistry.populateTransaction.renounceRole(
+        await poolRegistry.DEFAULT_ADMIN_ROLE(),
+        deployer,
+      ),
+    ]
+
+    const batchCallData = batchCall
+      .map((x) => x.data)
+      .filter((x): x is string => !!x)
+
+    await execute(
+      "PoolRegistry",
+      { from: deployer, log: true },
+      "batch",
+      batchCallData,
+      true,
+    )
   }
 }
 export default func
