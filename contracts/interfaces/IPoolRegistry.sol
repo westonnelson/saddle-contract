@@ -64,7 +64,7 @@ interface IPoolRegistry {
      * @dev Before adding a meta pool, the user must first add the underlying base pool.
      * Only Swap and MetaSwap contracts need to be addeded.
      */
-    function addPool(PoolInputData memory inputData) external;
+    function addPool(PoolInputData memory inputData) external payable;
 
     /**
      * @notice Add a new pool to the registry
@@ -72,7 +72,7 @@ interface IPoolRegistry {
      * @dev Before adding a meta pool, the user must first add the underlying base pool.
      * Only Swap and MetaSwap contracts need to be addeded.
      */
-    function addCommunityPool(PoolData memory data) external;
+    function addCommunityPool(PoolData memory data) external payable;
 
     /**
      * @notice Approve community deployed pools to be upgraded as Saddle owned
@@ -80,20 +80,20 @@ interface IPoolRegistry {
      * as a Saddle owned pool.
      * @param poolAddress address of the community pool
      */
-    function approvePool(address poolAddress) external;
+    function approvePool(address poolAddress) external payable;
 
     /**
      * @notice Overwrite existing entry with new PoolData
      * @param poolData new PoolData struct to store
      */
-    function updatePool(PoolData memory poolData) external;
+    function updatePool(PoolData memory poolData) external payable;
 
     /**
      * @notice Remove pool from the registry
      * @dev Since arrays are not easily reducable, the entry will be marked as removed.Q
      * @param poolAddress address of the pool to remove
      */
-    function removePool(address poolAddress) external;
+    function removePool(address poolAddress) external payable;
 
     /**
      * @notice Returns PoolData for given pool address
@@ -109,6 +109,15 @@ interface IPoolRegistry {
      * @param index index of the pool to read
      */
     function getPoolDataAtIndex(uint256 index)
+        external
+        view
+        returns (PoolData memory);
+
+    /**
+     * @notice Returns PoolData with given name
+     * @param poolName name of the pool to read
+     */
+    function getPoolDataByName(bytes32 poolName)
         external
         view
         returns (PoolData memory);
@@ -133,21 +142,6 @@ interface IPoolRegistry {
      * @param poolAddress address of the pool to read
      */
     function getPaused(address poolAddress) external view returns (bool);
-
-    // /**
-    //  * @notice Returns the swap fee of the given pool address
-    //  * @param poolAddress address of the pool to read
-    //  */
-    // function getSwapFee(address poolAddress) external view returns (uint256);
-
-    // /**
-    //  * @notice Returns the admin fee of the given pool address
-    //  * @param poolAddress address of the pool to read
-    //  */
-    // function getAdminFee(address poolAddress)
-    //     external
-    //     view
-    //     returns (uint256 adminFee);
 
     /**
      * @notice Returns the SwapStorage struct of the given pool address

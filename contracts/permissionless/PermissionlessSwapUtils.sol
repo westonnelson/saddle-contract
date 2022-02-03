@@ -18,7 +18,7 @@ library PermissionlessSwapUtils {
     using SafeMath for uint256;
 
     /**
-     * @notice withdraw all admin fees to a given address
+     * @notice Withdraw all admin fees to two addresses evenly
      * @param self Swap struct to withdraw fees from
      * @param creator Address to send hald of the fees to. For the creator of the community pool.
      * @param protocol Address to send the half of the fees to. For the protocol fee collection.

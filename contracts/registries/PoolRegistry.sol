@@ -87,7 +87,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
      * @param admin address who should have the DEFAULT_ADMIN_ROLE
      * @dev caller of this function will be set as the owner on deployment
      */
-    constructor(address admin, address poolOwner) public {
+    constructor(address admin, address poolOwner) public payable {
         require(admin != address(0), "admin == 0");
         _setupRole(DEFAULT_ADMIN_ROLE, admin);
         _setupRole(SADDLE_MANAGER_ROLE, msg.sender);
@@ -95,7 +95,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
     }
 
     /// @inheritdoc IPoolRegistry
-    function addCommunityPool(PoolData memory data) external override {
+    function addCommunityPool(PoolData memory data) external payable override {
         require(
             hasRole(COMMUNITY_MANAGER_ROLE, msg.sender),
             "PR: Only managers can add pools"
@@ -141,6 +141,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
     /// @inheritdoc IPoolRegistry
     function addPool(PoolInputData memory inputData)
         external
+        payable
         override
         nonReentrant
     {
@@ -264,7 +265,12 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
     }
 
     /// @inheritdoc IPoolRegistry
-    function approvePool(address poolAddress) external override managerOnly {
+    function approvePool(address poolAddress)
+        external
+        payable
+        override
+        managerOnly
+    {
         uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
         require(poolIndex > 0, "PR: Pool not found");
 
@@ -293,6 +299,7 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
     /// @inheritdoc IPoolRegistry
     function updatePool(PoolData memory poolData)
         external
+        payable
         override
         managerOnly
     {
@@ -306,7 +313,12 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
     }
 
     /// @inheritdoc IPoolRegistry
-    function removePool(address poolAddress) external override managerOnly {
+    function removePool(address poolAddress)
+        external
+        payable
+        override
+        managerOnly
+    {
         uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
         require(poolIndex > 0, "PR: Pool not found");
         poolIndex -= 1;
@@ -336,6 +348,18 @@ contract PoolRegistry is AccessControl, ReentrancyGuard, IPoolRegistry {
         returns (PoolData memory)
     {
         return pools[poolsIndexOfPlusOne[poolAddress] - 1];
+    }
+
+    /// @inheritdoc IPoolRegistry
+    function getPoolDataByName(bytes32 poolName)
+        external
+        view
+        override
+        returns (PoolData memory)
+    {
+        uint256 index = poolsIndexOfNamePlusOne[poolName];
+        require(index > 0, "PR: Pool not found");
+        return pools[index - 1];
     }
 
     modifier hasMatchingPool(address poolAddress) {

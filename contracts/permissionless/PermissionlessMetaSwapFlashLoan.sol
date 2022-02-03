@@ -1,13 +1,13 @@
-// SPDX-License-Identifier: MIT WITH AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 
 pragma solidity 0.6.12;
 
-import "./PermissionlessSwap.sol";
+import "./PermissionlessMetaSwap.sol";
 import "./FlashLoanEnabled.sol";
 import "../interfaces/IFlashLoanReceiver.sol";
 
 /**
- * @title Swap - A StableSwap implementation in solidity.
+ * @title MetaSwap - A StableSwap implementation in solidity.
  * @notice This contract is responsible for custody of closely pegged assets (eg. group of stablecoins)
  * and automatic market making system. Users become an LP (Liquidity Provider) by depositing their tokens
  * in desired ratios for an exchange of the pool token that represents their share of the pool.
@@ -20,37 +20,33 @@ import "../interfaces/IFlashLoanReceiver.sol";
  * stops the ratio of the tokens in the pool from changing.
  * Users can always withdraw their tokens via multi-asset withdraws.
  *
- * @dev Most of the logic is stored as a library `SwapUtils` for the sake of reducing contract's
+ * MetaSwap is a modified version of Swap that allows Swap's LP token to be utilized in pooling with other tokens.
+ * As an example, if there is a Swap pool consisting of [DAI, USDC, USDT], then a MetaSwap pool can be created
+ * with [sUSD, BaseSwapLPToken] to allow trades between either the LP token or the underlying tokens and sUSD.
+ * Note that when interacting with MetaSwap, users cannot deposit or withdraw via underlying tokens. In that case,
+ * `MetaSwapDeposit.sol` can be additionally deployed to allow interacting with unwrapped representations of the tokens.
+ *
+ * @dev Most of the logic is stored as a library `MetaSwapUtils` for the sake of reducing contract's
  * deployment size.
  */
-contract PermissionlessSwapFlashLoan is PermissionlessSwap, FlashLoanEnabled {
+contract PermissionlessMetaSwapFlashLoan is
+    PermissionlessMetaSwap,
+    FlashLoanEnabled
+{
     /**
      * @notice Constructor for the PermissionlessSwapFlashLoan contract.
      * @param _masterRegistry address of the MasterRegistry contract
      */
     constructor(IMasterRegistry _masterRegistry)
         public
-        PermissionlessSwap(_masterRegistry)
+        PermissionlessMetaSwap(_masterRegistry)
     {}
 
     /**
-     * @notice Initializes this Swap contract with the given parameters.
-     * This will also clone a LPToken contract that represents users'
-     * LP positions. The owner of LPToken will be this contract - which means
-     * only this contract is allowed to mint/burn tokens.
-     *
-     * @param _pooledTokens an array of ERC20s this pool will accept
-     * @param decimals the decimals to use for each pooled token,
-     * eg 8 for WBTC. Cannot be larger than POOL_PRECISION_DECIMALS
-     * @param lpTokenName the long-form name of the token to be deployed
-     * @param lpTokenSymbol the short symbol for the token to be deployed
-     * @param _a the amplification coefficient * n * (n - 1). See the
-     * StableSwap paper for details
-     * @param _fee default swap fee to be initialized with
-     * @param _adminFee default adminFee to be initialized with
-     * @param lpTokenTargetAddress the address of an existing LPToken contract to use as a target
+     * @inheritdoc MetaSwap
+     * @dev Additionally sets flashloan fees.
      */
-    function initialize(
+    function initializeMetaSwap(
         IERC20[] memory _pooledTokens,
         uint8[] memory decimals,
         string memory lpTokenName,
@@ -58,9 +54,10 @@ contract PermissionlessSwapFlashLoan is PermissionlessSwap, FlashLoanEnabled {
         uint256 _a,
         uint256 _fee,
         uint256 _adminFee,
-        address lpTokenTargetAddress
+        address lpTokenTargetAddress,
+        ISwap baseSwap
     ) public payable virtual override initializer {
-        Swap.initialize(
+        MetaSwap.initializeMetaSwap(
             _pooledTokens,
             decimals,
             lpTokenName,
@@ -68,7 +65,8 @@ contract PermissionlessSwapFlashLoan is PermissionlessSwap, FlashLoanEnabled {
             _a,
             _fee,
             _adminFee,
-            lpTokenTargetAddress
+            lpTokenTargetAddress,
+            baseSwap
         );
         // Set flashLoanFeeBPS to 8 and protocolFeeShareBPS to 0
         _setFlashLoanFees(8, 0);
@@ -82,7 +80,7 @@ contract PermissionlessSwapFlashLoan is PermissionlessSwap, FlashLoanEnabled {
         IERC20 token,
         uint256 amount,
         bytes memory params
-    ) external payable override nonReentrant {
+    ) external payable virtual override nonReentrant {
         uint8 tokenIndex = getTokenIndex(address(token));
         uint256 availableLiquidityBefore = token.balanceOf(address(this));
         uint256 protocolBalanceBefore = availableLiquidityBefore.sub(

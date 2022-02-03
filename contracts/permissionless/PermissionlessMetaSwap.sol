@@ -3,6 +3,7 @@
 pragma solidity 0.6.12;
 
 import "./PermissionlessSwap.sol";
+import "./ShareProtocolFee.sol";
 import "../meta/MetaSwapUtils.sol";
 import "../meta/MetaSwap.sol";
 
@@ -29,45 +30,29 @@ import "../meta/MetaSwap.sol";
  * @dev Most of the logic is stored as a library `MetaSwapUtils` for the sake of reducing contract's
  * deployment size.
  */
-contract PermissionlessMetaSwap is MetaSwap {
+contract PermissionlessMetaSwap is MetaSwap, ShareProtocolFee {
     using PermissionlessSwapUtils for SwapUtils.Swap;
-
-    IMasterRegistry public immutable MASTER_REGISTRY;
-    bytes32 public constant FEE_COLLECTOR_NAME =
-        0x466565436f6c6c6563746f720000000000000000000000000000000000000000;
-    address public feeCollector;
 
     /**
      * @notice Constructor for the PermissionlessSwap contract.
      * @param _masterRegistry address of the MasterRegistry contract
      */
-    constructor(IMasterRegistry _masterRegistry) public {
-        MASTER_REGISTRY = _masterRegistry;
-        _updateFeeCollectorCache(_masterRegistry);
-    }
-
-    /**
-     * @notice Updates cached address of the fee collector
-     */
-    function updateFeeCollectorCache() public virtual {
-        _updateFeeCollectorCache(MASTER_REGISTRY);
-    }
-
-    function _updateFeeCollectorCache(IMasterRegistry masterRegistry)
-        internal
-        virtual
-    {
-        feeCollector = masterRegistry.resolveNameToLatestAddress(
-            FEE_COLLECTOR_NAME
-        );
-    }
+    constructor(IMasterRegistry _masterRegistry)
+        public
+        ShareProtocolFee(_masterRegistry)
+    {}
 
     /*** ADMIN FUNCTIONS ***/
 
     /**
      * @notice Withdraw all admin fees to the contract owner and the fee collector
      */
-    function withdrawAdminFees() external virtual override {
+    function withdrawAdminFees()
+        external
+        payable
+        virtual
+        override(ShareProtocolFee, Swap)
+    {
         require(
             msg.sender == owner() || msg.sender == feeCollector,
             "Caller is not authroized"

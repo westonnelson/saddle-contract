@@ -3,14 +3,19 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
+import "../helper/BaseBoringBatchable.sol";
 import "../interfaces/IMasterRegistry.sol";
 
 /**
  * @title MasterRegistry
  * @notice This contract holds list of other registries or contracts and its historical versions.
  */
-contract MasterRegistry is Ownable, IMasterRegistry {
+contract MasterRegistry is AccessControl, IMasterRegistry, BaseBoringBatchable {
+    /// @notice Role responsible for adding registries.
+    bytes32 public constant SADDLE_MANAGER_ROLE =
+        keccak256("SADDLE_MANAGER_ROLE");
+
     mapping(bytes32 => address[]) private registryMap;
     mapping(address => ReverseRegistryData) private reverseRegistry;
 
@@ -26,12 +31,21 @@ contract MasterRegistry is Ownable, IMasterRegistry {
         uint256 version
     );
 
+    constructor(address admin) public {
+        _setupRole(DEFAULT_ADMIN_ROLE, admin);
+        _setupRole(SADDLE_MANAGER_ROLE, msg.sender);
+    }
+
     /// @inheritdoc IMasterRegistry
     function addRegistry(bytes32 registryName, address registryAddress)
         external
+        payable
         override
-        onlyOwner
     {
+        require(
+            hasRole(SADDLE_MANAGER_ROLE, msg.sender),
+            "MR: msg.sender is not allowed"
+        );
         require(registryName != 0, "MR: name cannot be empty");
         require(registryAddress != address(0), "MR: address cannot be empty");
 

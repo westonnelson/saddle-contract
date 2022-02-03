@@ -14,17 +14,11 @@ import {
   PoolInputDataStruct,
 } from "../../build/typechain/PoolRegistry"
 import { ISwapGuarded, Swap } from "../../build/typechain"
+import { PoolType } from "../../utils/constants"
 
 chai.use(solidity)
 const { expect } = chai
 const { get } = deployments
-
-enum PoolType {
-  BTC,
-  ETH,
-  USD,
-  OTHERS,
-}
 
 describe("Registry", async () => {
   let signers: Array<Signer>

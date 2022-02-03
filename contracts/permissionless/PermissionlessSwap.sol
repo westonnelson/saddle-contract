@@ -5,6 +5,7 @@ pragma solidity 0.6.12;
 import "../Swap.sol";
 import "../interfaces/IMasterRegistry.sol";
 import "./PermissionlessSwapUtils.sol";
+import "./ShareProtocolFee.sol";
 
 /**
  * @title Swap - A StableSwap implementation in solidity.
@@ -23,45 +24,29 @@ import "./PermissionlessSwapUtils.sol";
  * @dev Most of the logic is stored as a library `SwapUtils` for the sake of reducing contract's
  * deployment size.
  */
-contract PermissionlessSwap is Swap {
+contract PermissionlessSwap is Swap, ShareProtocolFee {
     using PermissionlessSwapUtils for SwapUtils.Swap;
-
-    IMasterRegistry public immutable MASTER_REGISTRY;
-    bytes32 public constant FEE_COLLECTOR_NAME =
-        0x466565436f6c6c6563746f720000000000000000000000000000000000000000;
-    address public feeCollector;
 
     /**
      * @notice Constructor for the PermissionlessSwap contract.
      * @param _masterRegistry address of the MasterRegistry contract
      */
-    constructor(IMasterRegistry _masterRegistry) public {
-        MASTER_REGISTRY = _masterRegistry;
-        _updateFeeCollectorCache(_masterRegistry);
-    }
-
-    /**
-     * @notice Updates cached address of the fee collector
-     */
-    function updateFeeCollectorCache() public virtual {
-        _updateFeeCollectorCache(MASTER_REGISTRY);
-    }
-
-    function _updateFeeCollectorCache(IMasterRegistry masterRegistry)
-        internal
-        virtual
-    {
-        feeCollector = masterRegistry.resolveNameToLatestAddress(
-            FEE_COLLECTOR_NAME
-        );
-    }
+    constructor(IMasterRegistry _masterRegistry)
+        public
+        ShareProtocolFee(_masterRegistry)
+    {}
 
     /*** ADMIN FUNCTIONS ***/
 
     /**
      * @notice Withdraw all admin fees to the contract owner and the fee collector
      */
-    function withdrawAdminFees() external virtual override {
+    function withdrawAdminFees()
+        external
+        payable
+        virtual
+        override(Swap, ShareProtocolFee)
+    {
         require(
             msg.sender == owner() || msg.sender == feeCollector,
             "Caller is not authroized"

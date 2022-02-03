@@ -19,7 +19,8 @@ interface IMasterRegistry {
      * @param registryAddress address of the new registry
      */
     function addRegistry(bytes32 registryName, address registryAddress)
-        external;
+        external
+        payable;
 
     /**
      * @notice Resolves a name to the latest registry address. Reverts if no match is found.

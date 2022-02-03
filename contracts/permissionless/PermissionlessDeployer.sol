@@ -69,24 +69,22 @@ contract PermissionlessDeployer is AccessControl {
 
     constructor(
         address admin,
-        address manager,
         address _masterRegistry,
         address _targetLPToken,
         address _targetSwap,
         address _targetMetaSwap,
         address _targetMetaSwapDeposit
-    ) public {
+    ) public payable {
         require(admin != address(0), "admin == 0");
-        require(manager != address(0), "manager == 0");
         require(_masterRegistry != address(0), "masterRegistry == 0");
 
-        setTargetLPToken(_targetLPToken);
-        setTargetSwap(_targetSwap);
-        setTargetMetaSwap(_targetMetaSwap);
-        setTargetMetaSwapDeposit(_targetMetaSwapDeposit);
-
         _setupRole(DEFAULT_ADMIN_ROLE, admin);
-        _setupRole(SADDLE_MANAGER_ROLE, manager);
+        _setupRole(SADDLE_MANAGER_ROLE, msg.sender);
+
+        _setTargetLPToken(_targetLPToken);
+        _setTargetSwap(_targetSwap);
+        _setTargetMetaSwap(_targetMetaSwap);
+        _setTargetMetaSwapDeposit(_targetMetaSwapDeposit);
 
         MASTER_REGISTRY = IMasterRegistry(_masterRegistry);
         _updatePoolRegistryCache(_masterRegistry);
@@ -97,13 +95,14 @@ contract PermissionlessDeployer is AccessControl {
         _;
     }
 
-    function clone(address target) public returns (address newClone) {
+    function clone(address target) public payable returns (address newClone) {
         newClone = Clones.clone(target);
         emit NewClone(target, newClone);
     }
 
     function deploySwap(DeploySwapInput memory input)
         external
+        payable
         returns (address deployedSwap)
     {
         address swapClone = clone(targetSwap);
@@ -145,6 +144,7 @@ contract PermissionlessDeployer is AccessControl {
 
     function deployMetaSwap(DeployMetaSwapInput memory input)
         external
+        payable
         returns (address deployedMetaSwap, address deployedMetaSwapDeposit)
     {
         deployedMetaSwap = clone(targetMetaSwap);
@@ -217,22 +217,41 @@ contract PermissionlessDeployer is AccessControl {
         );
     }
 
-    function setTargetLPToken(address _targetLPToken) public onlyManager {
+    function setTargetLPToken(address _targetLPToken)
+        external
+        payable
+        onlyManager
+    {
+        _setTargetLPToken(_targetLPToken);
+    }
+
+    function _setTargetLPToken(address _targetLPToken) internal {
         require(
             address(_targetLPToken) != address(0),
             "Target LPToken cannot be 0"
         );
         targetLPToken = _targetLPToken;
-        emit TargetLPTokenUpdated(_targetLPToken);
     }
 
-    function setTargetSwap(address _targetSwap) public onlyManager {
+    function setTargetSwap(address _targetSwap) external payable onlyManager {
+        _setTargetSwap(_targetSwap);
+    }
+
+    function _setTargetSwap(address _targetSwap) internal {
         require(address(_targetSwap) != address(0), "Target Swap cannot be 0");
         targetSwap = _targetSwap;
         emit TargetSwapUpdated(_targetSwap);
     }
 
-    function setTargetMetaSwap(address _targetMetaSwap) public onlyManager {
+    function setTargetMetaSwap(address _targetMetaSwap)
+        public
+        payable
+        onlyManager
+    {
+        _setTargetMetaSwap(_targetMetaSwap);
+    }
+
+    function _setTargetMetaSwap(address _targetMetaSwap) internal {
         require(
             address(_targetMetaSwap) != address(0),
             "Target MetaSwap cannot be 0"
@@ -242,8 +261,15 @@ contract PermissionlessDeployer is AccessControl {
     }
 
     function setTargetMetaSwapDeposit(address _targetMetaSwapDeposit)
-        public
+        external
+        payable
         onlyManager
+    {
+        _setTargetMetaSwapDeposit(_targetMetaSwapDeposit);
+    }
+
+    function _setTargetMetaSwapDeposit(address _targetMetaSwapDeposit)
+        internal
     {
         require(
             address(_targetMetaSwapDeposit) != address(0),
