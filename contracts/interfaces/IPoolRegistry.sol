@@ -189,12 +189,21 @@ interface IPoolRegistry {
 
     /**
      * @notice Returns an array of balances of the tokens
-     * @param poolAddress address of the pool to look up the balances for
-     * @return tokens array of token addresses
+     * @param poolAddress address of the pool to look up the token balances for
      * @return balances array of token balances
      */
-    function getBalances(address poolAddress)
+    function getTokenBalances(address poolAddress)
         external
         view
-        returns (IERC20[] memory tokens, uint256[] memory balances);
+        returns (uint256[] memory balances);
+
+    /**
+     * @notice Returns an array of balances of the tokens
+     * @param poolAddress address of the pool to look up the token balances for
+     * @return balances array of token balances
+     */
+    function getUnderlyingTokenBalances(address poolAddress)
+        external
+        view
+        returns (uint256[] memory balances);
 }

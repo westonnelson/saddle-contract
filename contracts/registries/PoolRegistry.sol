@@ -469,10 +469,9 @@ contract PoolRegistry is
         view
         override
         hasMatchingPool(poolAddress)
-        returns (IERC20[] memory)
+        returns (IERC20[] memory tokens)
     {
-        uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
-        return pools[poolIndex - 1].tokens;
+        return pools[poolsIndexOfPlusOne[poolAddress] - 1].tokens;
     }
 
     /// @inheritdoc IPoolRegistry
@@ -481,10 +480,9 @@ contract PoolRegistry is
         view
         override
         hasMatchingPool(poolAddress)
-        returns (IERC20[] memory)
+        returns (IERC20[] memory underlyingTokens)
     {
-        uint256 poolIndex = poolsIndexOfPlusOne[poolAddress];
-        return pools[poolIndex - 1].underlyingTokens;
+        return pools[poolsIndexOfPlusOne[poolAddress] - 1].underlyingTokens;
     }
 
     /// @inheritdoc IPoolRegistry
@@ -507,17 +505,52 @@ contract PoolRegistry is
     }
 
     /// @inheritdoc IPoolRegistry
-    function getBalances(address poolAddress)
+    function getTokenBalances(address poolAddress)
         external
         view
         override
         hasMatchingPool(poolAddress)
-        returns (IERC20[] memory tokens, uint256[] memory balances)
+        returns (uint256[] memory balances)
     {
-        tokens = pools[poolsIndexOfPlusOne[poolAddress] - 1].tokens;
-        balances = new uint256[](tokens.length);
-        for (uint8 i = 0; i < tokens.length; i++) {
+        return _getTokenBalances(poolAddress);
+    }
+
+    function _getTokenBalances(address poolAddress)
+        internal
+        view
+        returns (uint256[] memory balances)
+    {
+        uint256 tokensLength = pools[poolsIndexOfPlusOne[poolAddress] - 1]
+            .tokens
+            .length;
+        balances = new uint256[](tokensLength);
+        for (uint8 i = 0; i < tokensLength; i++) {
             balances[i] = ISwap(poolAddress).getTokenBalance(i);
+        }
+    }
+
+    /// @inheritdoc IPoolRegistry
+    function getUnderlyingTokenBalances(address poolAddress)
+        external
+        view
+        override
+        hasMatchingPool(poolAddress)
+        returns (uint256[] memory balances)
+    {
+        uint256 poolIndex = poolsIndexOfPlusOne[poolAddress] - 1;
+        address basePool = pools[poolIndex].basePoolAddress;
+        uint256[] memory basePoolBalances = _getTokenBalances(basePool);
+        uint256 underlyingTokensLength = pools[poolIndex]
+            .underlyingTokens
+            .length;
+        uint256 metaLPTokenIndex = underlyingTokensLength -
+            basePoolBalances.length;
+        balances = new uint256[](underlyingTokensLength);
+        for (uint8 i = 0; i < metaLPTokenIndex; i++) {
+            balances[i] = ISwap(poolAddress).getTokenBalance(i);
+        }
+        for (uint256 i = metaLPTokenIndex; i < underlyingTokensLength; i++) {
+            balances[i] = basePoolBalances[i - metaLPTokenIndex];
         }
     }
 }
