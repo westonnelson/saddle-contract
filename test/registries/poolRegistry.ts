@@ -291,11 +291,29 @@ describe("Registry", async () => {
     })
   })
 
+  describe("getUnderlyingTokenBalances", () => {
+    it("Successfully returns correct array of underlying tokens", async () => {
+      await poolRegistry.addPool(usdv2InputData)
+      const basePoolBalances = await poolRegistry.getTokenBalances(
+        usdv2Data.poolAddress,
+      )
+      expect(basePoolBalances).to.deep.equal([BigNumber.from(1e18), BigNumber.from(1e6), BigNumber.from(1e6)])
+
+      await poolRegistry.addPool(susdMetaV2InputData)
+      const underlyingBalances = await poolRegistry.getUnderlyingTokenBalances(
+        susdMetaV2Data.poolAddress,
+      )
+      expect(underlyingBalances).to.deep.equal(
+        [BIG_NUMBER_1E18, ...underlyingBalances]
+      )
+    })
+  })
+
   describe("getBalances", () => {
     it("Successfully fetches balances for given pool address", async () => {
       await poolRegistry.addPool(usdv2Data)
       expect(
-        await poolRegistry.callStatic.getBalances(usdv2Data.poolAddress),
+        await poolRegistry.callStatic.getTokenBalances(usdv2Data.poolAddress),
       ).to.eql([
         usdv2Data.tokens,
         [BIG_NUMBER_1E18, BigNumber.from(1e6), BigNumber.from(1e6)],
