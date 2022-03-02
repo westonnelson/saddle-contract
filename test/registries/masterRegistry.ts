@@ -19,13 +19,15 @@ describe("Master Registry", async () => {
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
-      await deployments.fixture() // ensure you start from a fresh deployments
+      await deployments.fixture([]) // ensure you start from a fresh deployments
 
       signers = await ethers.getSigners()
       owner = signers[0]
       ownerAddress = await owner.getAddress()
       masterRegistryFactory = await ethers.getContractFactory("MasterRegistry")
-      masterRegistry = (await masterRegistryFactory.deploy()) as MasterRegistry
+      masterRegistry = (await masterRegistryFactory.deploy(
+        ownerAddress,
+      )) as MasterRegistry
     },
   )
 
