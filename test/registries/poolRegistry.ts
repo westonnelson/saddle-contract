@@ -7,13 +7,19 @@ import { solidity } from "ethereum-waffle"
 
 import chai from "chai"
 import { deployments } from "hardhat"
-import { BIG_NUMBER_1E18, MAX_UINT256, ZERO_ADDRESS } from "../testUtils"
+import {
+  BIG_NUMBER_1E18,
+  getCurrentBlockTimestamp,
+  MAX_UINT256,
+  setTimestamp,
+  ZERO_ADDRESS,
+} from "../testUtils"
 import {
   PoolRegistry,
   PoolDataStruct,
   PoolInputDataStruct,
 } from "../../build/typechain/PoolRegistry"
-import { ISwapGuarded, Swap } from "../../build/typechain"
+import { ISwapGuarded, MetaSwap, Swap } from "../../build/typechain"
 import { PoolType } from "../../utils/constants"
 
 chai.use(solidity)
@@ -52,7 +58,6 @@ describe("Registry", async () => {
         poolName: ethers.utils.formatBytes32String("USDv2"),
         targetAddress: (await get("SaddleUSDPoolV2")).address,
         metaSwapDepositAddress: ZERO_ADDRESS,
-        pid: BigNumber.from(0),
         isSaddleApproved: true,
         isRemoved: false,
         isGuarded: false,
@@ -72,7 +77,6 @@ describe("Registry", async () => {
         underlyingTokens: [],
         basePoolAddress: ZERO_ADDRESS,
         metaSwapDepositAddress: ZERO_ADDRESS,
-        pid: BigNumber.from(0),
         isSaddleApproved: true,
         isRemoved: false,
         isGuarded: false,
@@ -85,7 +89,6 @@ describe("Registry", async () => {
         targetAddress: (await get("SaddleSUSDMetaPoolUpdated")).address,
         metaSwapDepositAddress: (await get("SaddleSUSDMetaPoolUpdatedDeposit"))
           .address,
-        pid: BigNumber.from(1),
         isSaddleApproved: true,
         isRemoved: false,
         isGuarded: false,
@@ -110,7 +113,6 @@ describe("Registry", async () => {
         basePoolAddress: (await get("SaddleUSDPoolV2")).address,
         metaSwapDepositAddress: (await get("SaddleSUSDMetaPoolUpdatedDeposit"))
           .address,
-        pid: BigNumber.from(1),
         isSaddleApproved: true,
         isRemoved: false,
         isGuarded: false,
@@ -122,7 +124,6 @@ describe("Registry", async () => {
         poolName: ethers.utils.formatBytes32String("BTC guarded pool"),
         targetAddress: (await get("SaddleBTCPool")).address,
         metaSwapDepositAddress: ZERO_ADDRESS,
-        pid: BigNumber.from(0),
         isSaddleApproved: true,
         isRemoved: false,
         isGuarded: true,
@@ -143,7 +144,6 @@ describe("Registry", async () => {
         underlyingTokens: [],
         basePoolAddress: ZERO_ADDRESS,
         metaSwapDepositAddress: ZERO_ADDRESS,
-        pid: BigNumber.from(0),
         isSaddleApproved: true,
         isRemoved: false,
         isGuarded: true,
@@ -158,6 +158,21 @@ describe("Registry", async () => {
       )) as Swap
       await usdPoolContract.addLiquidity(
         [String(1e18), String(1e6), String(1e6)],
+        0,
+        MAX_UINT256,
+      )
+
+      await setTimestamp((await getCurrentBlockTimestamp()) + 600)
+
+      for (const token of susdMetaV2Data.tokens) {
+        const tokenContract = await ethers.getContractAt("GenericERC20", token)
+        await tokenContract.approve(susdMetaV2Data.poolAddress, MAX_UINT256)
+      }
+      const susdPoolContract = (await ethers.getContract(
+        "SaddleSUSDMetaPoolUpdated",
+      )) as MetaSwap
+      await susdPoolContract.addLiquidity(
+        [String(1e18), String(1e18)],
         0,
         MAX_UINT256,
       )
@@ -297,15 +312,20 @@ describe("Registry", async () => {
       const basePoolBalances = await poolRegistry.getTokenBalances(
         usdv2Data.poolAddress,
       )
-      expect(basePoolBalances).to.deep.equal([BigNumber.from(1e18), BigNumber.from(1e6), BigNumber.from(1e6)])
+      expect(basePoolBalances).to.deep.equal([
+        BIG_NUMBER_1E18,
+        BigNumber.from(1e6),
+        BigNumber.from(1e6),
+      ])
 
       await poolRegistry.addPool(susdMetaV2InputData)
       const underlyingBalances = await poolRegistry.getUnderlyingTokenBalances(
         susdMetaV2Data.poolAddress,
       )
-      expect(underlyingBalances).to.deep.equal(
-        [BIG_NUMBER_1E18, ...underlyingBalances]
-      )
+      expect(underlyingBalances).to.deep.equal([
+        BIG_NUMBER_1E18,
+        ...basePoolBalances,
+      ])
     })
   })
 
@@ -314,10 +334,7 @@ describe("Registry", async () => {
       await poolRegistry.addPool(usdv2Data)
       expect(
         await poolRegistry.callStatic.getTokenBalances(usdv2Data.poolAddress),
-      ).to.eql([
-        usdv2Data.tokens,
-        [BIG_NUMBER_1E18, BigNumber.from(1e6), BigNumber.from(1e6)],
-      ])
+      ).to.eql([BIG_NUMBER_1E18, BigNumber.from(1e6), BigNumber.from(1e6)])
     })
   })
 

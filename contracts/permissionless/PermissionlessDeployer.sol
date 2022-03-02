@@ -130,7 +130,6 @@ contract PermissionlessDeployer is AccessControl {
             underlyingTokens: new IERC20[](0),
             basePoolAddress: address(0),
             metaSwapDepositAddress: address(0),
-            pid: 0,
             isSaddleApproved: false,
             isRemoved: false,
             isGuarded: false
@@ -193,7 +192,6 @@ contract PermissionlessDeployer is AccessControl {
             underlyingTokens: underlyingTokens,
             basePoolAddress: input.baseSwap,
             metaSwapDepositAddress: deployedMetaSwapDeposit,
-            pid: 0,
             isSaddleApproved: false,
             isRemoved: false,
             isGuarded: false

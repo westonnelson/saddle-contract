@@ -174,7 +174,6 @@ contract PoolRegistry is
             underlyingTokens,
             address(0),
             inputData.metaSwapDepositAddress,
-            inputData.pid,
             inputData.isSaddleApproved,
             inputData.isRemoved,
             inputData.isGuarded
@@ -538,8 +537,9 @@ contract PoolRegistry is
         returns (uint256[] memory balances)
     {
         uint256 poolIndex = poolsIndexOfPlusOne[poolAddress] - 1;
-        address basePool = pools[poolIndex].basePoolAddress;
-        uint256[] memory basePoolBalances = _getTokenBalances(basePool);
+        uint256[] memory basePoolBalances = _getTokenBalances(
+            pools[poolIndex].basePoolAddress
+        );
         uint256 underlyingTokensLength = pools[poolIndex]
             .underlyingTokens
             .length;

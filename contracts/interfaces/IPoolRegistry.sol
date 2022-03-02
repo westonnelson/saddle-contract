@@ -14,7 +14,6 @@ interface IPoolRegistry {
         bytes32 poolName;
         address targetAddress;
         address metaSwapDepositAddress;
-        uint72 pid;
         bool isSaddleApproved;
         bool isRemoved;
         bool isGuarded;
@@ -30,7 +29,6 @@ interface IPoolRegistry {
         IERC20[] underlyingTokens;
         address basePoolAddress;
         address metaSwapDepositAddress;
-        uint72 pid;
         bool isSaddleApproved;
         bool isRemoved;
         bool isGuarded;
