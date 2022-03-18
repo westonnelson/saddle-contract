@@ -36,6 +36,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
       },
     })
 
+    // Save the first deployment as MetaSwapUpdated
+    await save("MetaSwap", await get("SaddleSUSDMetaPool"))
+
     await execute(
       "SaddleSUSDMetaPool",
       {
