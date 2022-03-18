@@ -112,16 +112,6 @@ let config: HardhatUserConfig = {
       },
     ],
     overrides: {
-      "deploy/130_deploy_Multicall.ts":
-      {
-        version: "0.8.12",
-        settings: {
-          optimizer: {
-            enabled: true,
-            runs: 10000000,
-          },
-        },
-      },
       "contracts/helper/Multicall3.sol":
       {
         version: "0.8.12",
