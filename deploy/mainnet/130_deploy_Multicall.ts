@@ -20,8 +20,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     skipIfAlreadyDeployed: true,
   })
 
-  if ((await ethers.provider.getNetwork()).chainId == 31337 || // buidler evm
-    (await ethers.provider.getNetwork()).chainId == 1337) {    // ganache
+  if (
+    (await ethers.provider.getNetwork()).chainId == 31337 || // buidler evm
+    (await ethers.provider.getNetwork()).chainId == 1337
+  ) {
+    // ganache
 
     const contractOwnerAddress = "0x05f32b3cc3888453ff71b01135b34ff8e41263f2"
     const impersonatedOwner = await impersonateAccount(contractOwnerAddress)
@@ -42,8 +45,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
       abi: multicall3.abi,
       address: multicall3.address,
     })
-
-  };
+  }
 }
 
 export default func
